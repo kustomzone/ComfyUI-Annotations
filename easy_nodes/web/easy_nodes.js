@@ -138,6 +138,10 @@ app.registerExtension({
       nodeType.prototype.onExecuted = function (message) {
         onExecuted?.apply(this, [message]);
 
+        if (!message || !message.text) {
+          return;
+        }
+
         const numShowVals = message.text.length;
 
         resizeShowValueWidgets(this, numShowVals, app);
