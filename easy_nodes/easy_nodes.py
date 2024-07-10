@@ -245,7 +245,7 @@ class SubclassVerifier(CustomVerifier):
     
     def __call__(self, arg):
         assert issubclass(self.cls, type(arg)) or issubclass(type(arg), self.cls), (
-            f"Expected one of {self.cls.__name__} and {type(arg).__name__} to be a direct descendant of the other.")
+            f"Expected a {self.cls.__name__}, but got received a value ({arg}) of type {type(arg).__name__}.")
 
 
 class TypeVerifier(CustomVerifier):
@@ -458,7 +458,7 @@ def _verify_values(config: EasyNodesConfig,
                 except Exception as e:
                     logging.error(_custom_verifiers)
                     logging.error(val)
-                    error_str = f"Error verifying {list_type} tensor {param_name}: {str(e)}\n{code_origin_loc}"
+                    error_str = f"Error verifying {list_type} {param_name}: {str(e)}\n{code_origin_loc}"
                     logging.warning(error_str)
                     if config.verify_level == CheckSeverityMode.FATAL:
                         raise ValueError(error_str) from None                        
@@ -759,7 +759,6 @@ def ComfyNode(
         source_location = f"{filename}:{func.__code__.co_firstlineno}"
         code_origin_loc = f"\n Source: {func.__qualname__} {source_location}"
         original_is_changed = is_changed
-        wrapped_is_changed = is_changed
         
         def wrapped_is_changed(*args, **kwargs):
             if always_run:
@@ -917,9 +916,9 @@ def ComfyNode(
             if input_is_list:
                 for arg_name in kwargs.keys():
                     if debug:
-                        print("kwarg:", arg_name, len(kwargs[arg_name]))
+                        logging.info(f"kwarg: {arg_name} {len(kwargs[arg_name])}")
                     if not input_is_list_map[arg_name]:
-                        assert len(kwargs[arg_name]) == 1
+                        assert len(kwargs[arg_name]) == 1, f"Expected a single value for {arg_name}, but got {len(kwargs[arg_name])}"
                         kwargs[arg_name] = kwargs[arg_name][0]
             
             latest_func = _get_latest_version_of_func(func, debug)
@@ -975,7 +974,7 @@ def ComfyNode(
 
 
 def _annotate_input(
-    annotation, default=inspect.Parameter.empty, debug=False
+    param_name, annotation, default=inspect.Parameter.empty, debug=False
 ) -> tuple[tuple, bool, bool]:
     type_name = _get_type_str(annotation)
         
@@ -983,7 +982,7 @@ def _annotate_input(
         return (default.choices,), False, False
     
     if debug:
-        logging.warning(f"Default: {default} type: {type(default)} {isinstance(default, float)} {isinstance(default, NumberInput)}")
+        logging.info(f"{param_name} Default: {default} type: {type(default)} {isinstance(default, float)} {isinstance(default, NumberInput)}")
     
     if isinstance(default, str) and not isinstance(default, StringInput):
         default = StringInput(default)
@@ -1027,11 +1026,11 @@ def _infer_input_types_from_annotations(func, skip_first, debug=False):
     params = list(sig.parameters.items())
 
     if debug:
-        print("ALL PARAMS", params)
+        logging.info(f"ALL PARAMS {params}")
 
     if skip_first:
         if debug:
-            print("SKIPPING FIRST PARAM ", params[0])
+            logging.info(f"SKIPPING FIRST PARAM {params[0]}")
         params = params[1:]
 
     for param_name, param in params:
@@ -1040,9 +1039,9 @@ def _infer_input_types_from_annotations(func, skip_first, debug=False):
         input_type_map[param_name] = param.annotation
 
         if debug:
-            print("Param default:", param.default)
+            logging.info(f"Param default: {param.default}")
 
-        the_param, is_optional, is_hidden = _annotate_input(param.annotation, param.default, debug)
+        the_param, is_optional, is_hidden = _annotate_input(param_name, param.annotation, param.default, debug)
         
         if param_name == "unique_id" or param_name == "extra_pnginfo":
             pass
@@ -1071,17 +1070,17 @@ def _infer_return_types_from_annotations(func_or_types, debug=False):
         origin = get_origin(return_annotation)
 
         if debug:
-            print(f"return_annotation: '{return_annotation}'")
-            print(f"return_args: '{return_args}'")
-            print(f"origin: '{origin}'")
-            print(type(return_annotation), return_annotation)
+            logging.info(f"return_annotation: '{return_annotation}'")
+            logging.info(f"return_args: '{return_args}'")
+            logging.info(f"origin: '{origin}'")
+            logging.info(f"{type(return_annotation)}, {return_annotation}")
 
     types_mapped = []
     output_is_list = []
 
     if origin is tuple:
         for arg in return_args:
-            if get_origin(arg) == list:
+            if get_origin(arg) is list:
                 output_is_list.append(True)
                 list_arg = get_args(arg)[0]
                 types_mapped.append(_get_type_str(list_arg))
@@ -1090,9 +1089,9 @@ def _infer_return_types_from_annotations(func_or_types, debug=False):
                 types_mapped.append(_get_type_str(arg))
     elif origin is list:
         if debug:
-            print(_get_type_str(return_annotation))
-            print(return_annotation)
-            print(return_args)
+            logging.info(_get_type_str(return_annotation))
+            logging.info(return_annotation)
+            logging.info(return_args)
         types_mapped.append(_get_type_str(return_args[0]))
         output_is_list.append(origin is list)
     elif return_annotation is not inspect.Parameter.empty:
@@ -1102,7 +1101,7 @@ def _infer_return_types_from_annotations(func_or_types, debug=False):
     return_types_tuple = tuple(types_mapped)
     output_is_lists_tuple = tuple(output_is_list)
     if debug:
-        print(
+        logging.info(
             f"return_types_tuple: '{return_types_tuple}', output_is_lists_tuple: '{output_is_lists_tuple}'"
         )
 
