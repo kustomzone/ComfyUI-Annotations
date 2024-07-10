@@ -25,7 +25,7 @@ register_type(AnyType, any_type, verifier=AnythingVerifier())
 
 # Primitive types
 register_type(int, "INT")
-register_type(float, "FLOAT")
+register_type(float, "FLOAT", verifier=TypeVerifier([float, int]))
 register_type(str, "STRING")
 register_type(bool, "BOOLEAN")
 register_type(NumberType, "NUMBER", verifier=TypeVerifier([float, int]))
