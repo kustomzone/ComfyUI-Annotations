@@ -35,6 +35,10 @@ function resizeShowValueWidgets(node, numValues, app) {
 
 
 function renderSourceLinkAndInfo(node, ctx, titleHeight) {
+  if (node?.flags?.collapsed) {
+    return;
+  }
+
   if (node.sourceLoc) {
     const link = node.sourceLoc;
     const linkText = "src";
@@ -165,7 +169,6 @@ app.registerExtension({
       const onDrawBackground = nodeType.prototype.onDrawBackground;
       nodeType.prototype.onDrawBackground = function (ctx, canvas) {
         onDrawBackground?.apply(this, arguments);
-
       }
 
       const onMouseDown = nodeType.prototype.onMouseDown;
