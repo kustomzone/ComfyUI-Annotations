@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import folder_paths
 from server import PromptServer
 from aiohttp import web
 
@@ -129,3 +130,32 @@ async def api_set_user_config(request):
   data = json.loads(post.get("json"))
   set_user_config(data)
   return web.json_response({"status": "ok"})
+
+
+@routes.get("/verify_image")
+async def verify_image(request):
+    if "filename" in request.rel_url.query:
+        filename = request.rel_url.query["filename"]
+        filename, output_dir = folder_paths.annotated_filepath(filename)
+
+        # validation for security: prevent accessing arbitrary path
+        if filename[0] == '/' or '..' in filename:
+            return web.Response(status=400)
+
+        if output_dir is None:
+            type = request.rel_url.query.get("type", "output")
+            output_dir = folder_paths.get_directory_by_type(type)
+
+        if output_dir is None:
+            return web.Response(status=400)
+
+        if "subfolder" in request.rel_url.query:
+            full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+            if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                return web.Response(status=403)
+            output_dir = full_output_dir
+
+        file = os.path.join(output_dir, filename)
+        return web.json_response({"exists": os.path.isfile(file)})
+
+    return web.Response(status=400)

@@ -1,8 +1,8 @@
 import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 import { createSetting } from "./config_service.js";
 
 const retainPreviewsId = "easy_nodes.RetainPreviews";
-
 
 app.registerExtension({
     name: "Retain Previews",
@@ -27,15 +27,10 @@ app.registerExtension({
 
         if (previewTypes.includes(nodeData.name)) {
             console.log("Found preview node: " + nodeData.name);
-            const onExecuted = nodeType.prototype.onExecuted;
-            nodeType.prototype.onExecuted = function (output) {
-                onExecuted === null || onExecuted === void 0 ? void 0 : onExecuted.apply(this, [output]);
-                this.canvasWidget.value = output;
-            };
 
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             nodeType.prototype.onNodeCreated = function() {
-                onNodeCreated === null || onNodeCreated === void 0 ? void 0 : onNodeCreated.apply(this);
+                onNodeCreated?.apply(this);
 
                 const node = this;
                 const widget = {
@@ -44,10 +39,31 @@ app.registerExtension({
                     options: { serialize: false },
                     _value: {},
                     set value(v) {
-                        this._value = v;
-                        app.nodeOutputs[node.id + ""] = v;
+                        if (v && v.images && v.images.length > 0) {
+                            Promise.all(v.images.map(async (params) => {
+                                try {
+                                    const response = await api.fetchApi("/verify_image?" +
+                                        new URLSearchParams(params).toString() +
+                                        (node.animatedImages ? "" : app.getPreviewFormatParam()) + app.getRandParam());
+                                    const data = await response.json();
+                                    return data.exists;
+                                } catch (error) {
+                                    return false;
+                                }
+                            })).then((results) => {
+                                if (results.every(Boolean)) {
+                                    this._value = v;
+                                    app.nodeOutputs[node.id + ""] = v;
+                                } else {
+                                    this._value = {};
+                                    app.nodeOutputs[node.id + ""] = {};
+                                }
+                            });
+                        } else {
+                            this._value = v;
+                            app.nodeOutputs[node.id + ""] = v;
+                        }
                     },
-
                     get value() {
                         return this._value;
                     },
@@ -55,6 +71,12 @@ app.registerExtension({
                 
                 this.canvasWidget = this.addCustomWidget(widget);
             }
+
+            const onExecuted = nodeType.prototype.onExecuted;
+            nodeType.prototype.onExecuted = function (output) {
+                onExecuted?.apply(this, [output]);
+                this.canvasWidget.value = output;
+            };
         }
     },
 });
