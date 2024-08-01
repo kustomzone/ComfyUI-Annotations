@@ -6,7 +6,7 @@ app.registerExtension({
   async setup() {
     createSetting(
       "easy_nodes.llm_debugging",
-      "🧠 LLM Debugging",
+      "🪄 LLM Debugging",
       "combo",
       "Off",
       (value) => [
@@ -18,14 +18,14 @@ app.registerExtension({
 
     createSetting(
       "easy_nodes.max_tries",
-      "🧠 LLM Max Tries",
+      "🪄 LLM Max Tries",
       "number",
       3
     );
 
     createSetting(
       "easy_nodes.llm_model",
-      "🧠 LLM Model",
+      "🪄 LLM Model",
       "text",
       "gpt-4o"
     );
