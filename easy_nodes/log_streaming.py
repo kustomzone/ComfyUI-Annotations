@@ -36,35 +36,6 @@ class CloseableBufferWrapper:
 _buffers: Dict[str, Tuple[str, List[CloseableBufferWrapper]]] = {}
 
 
-@routes.get("/easy_nodes/verify_image")
-async def verify_image(request):
-    if "filename" in request.rel_url.query:
-        filename = request.rel_url.query["filename"]
-        filename, output_dir = folder_paths.annotated_filepath(filename)
-
-        # validation for security: prevent accessing arbitrary path
-        if filename[0] == '/' or '..' in filename:
-            return web.Response(status=400)
-
-        if output_dir is None:
-            type = request.rel_url.query.get("type", "output")
-            output_dir = folder_paths.get_directory_by_type(type)
-
-        if output_dir is None:
-            return web.Response(status=400)
-
-        if "subfolder" in request.rel_url.query:
-            full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-            if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-                return web.Response(status=403)
-            output_dir = full_output_dir
-
-        file = os.path.join(output_dir, filename)
-        return web.json_response({"exists": os.path.isfile(file)})
-
-    return web.Response(status=400)
-
-
 async def tail_file(filename, offset):
     file_size = os.path.getsize(filename)
     if offset == -1:
@@ -214,8 +185,8 @@ async def show_log(request):
                                       "valid nodes": [str(key) for key in _buffers.keys()]}, status=404)
            
         response = await send_header(request)
-        prompt_id, buffer_list = _buffers[node_id]
-        await response.write(convert_text(f"Logs for node {Fore.GREEN}{node_id}{Fore.RESET} run in prompt {Fore.GREEN}{prompt_id}{Fore.RESET}\n\n"))
+        node_class, prompt_id, buffer_list = _buffers[node_id]
+        await response.write(convert_text(f"Logs for node {Fore.GREEN}{node_id}{Fore.RESET} ({Fore.GREEN}{node_class}{Fore.RESET}) in prompt {Fore.GREEN}{prompt_id}{Fore.RESET}\n\n"))
         
         invocation = 1
         last_buffer_index = 0
@@ -246,21 +217,50 @@ async def show_log(request):
     return response
     
 
-def set_log_buffer(node_id: str, prompt_id: str, buffer_wrapper: CloseableBufferWrapper):
+def add_log_buffer(node_id: str, node_class: str, prompt_id: str, buffer_wrapper: CloseableBufferWrapper):
     node_id = str(node_id)
     
     if node_id in _buffers:
-        existing_prompt_id, buffers = _buffers[node_id]
+        node_class, existing_prompt_id, buffers = _buffers[node_id]
         if existing_prompt_id != prompt_id:
             log_list = [] 
-            _buffers[node_id] = (prompt_id, log_list)
+            _buffers[node_id] = (node_class, prompt_id, log_list)
         else:
             log_list = buffers
     else:
         log_list = []
-        _buffers[node_id] = (prompt_id, log_list)
+        _buffers[node_id] = (node_class, prompt_id, log_list)
 
     log_list.append(buffer_wrapper)
 
     nodes_with_logs = [key for key in _buffers.keys()]
     PromptServer.instance.send_sync("logs_updated", {"nodes_with_logs": nodes_with_logs}, None)
+
+
+@routes.get("/easy_nodes/verify_image")
+async def verify_image(request):
+    if "filename" in request.rel_url.query:
+        filename = request.rel_url.query["filename"]
+        filename, output_dir = folder_paths.annotated_filepath(filename)
+
+        # validation for security: prevent accessing arbitrary path
+        if filename[0] == '/' or '..' in filename:
+            return web.Response(status=400)
+
+        if output_dir is None:
+            type = request.rel_url.query.get("type", "output")
+            output_dir = folder_paths.get_directory_by_type(type)
+
+        if output_dir is None:
+            return web.Response(status=400)
+
+        if "subfolder" in request.rel_url.query:
+            full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+            if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                return web.Response(status=403)
+            output_dir = full_output_dir
+
+        file = os.path.join(output_dir, filename)
+        return web.json_response({"exists": os.path.isfile(file)})
+
+    return web.Response(status=400)

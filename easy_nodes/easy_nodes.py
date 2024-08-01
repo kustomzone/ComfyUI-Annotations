@@ -607,9 +607,9 @@ def get_formatter():
     return coloredFormatter
 
 
-def _call_function_and_verify_result(config: EasyNodesConfig, func: callable, 
+def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
                                      args, kwargs, debug, input_desc, adjusted_return_types, 
-                                     wrapped_name, return_names=None):
+                                     wrapped_name, node_class, return_names=None):
     try_count = 0
     llm_debugging_enabled = config_service.get_config_value("easy_nodes.llm_debugging", "Off") != "Off"
     max_tries = int(config_service.get_config_value("easy_nodes.max_tries", 1)) if llm_debugging_enabled == "AutoFix" else 1
@@ -634,7 +634,7 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
             sys.stdout = Tee(sys.stdout, buffer)
             
             if save_logs:
-                log_streaming.set_log_buffer(str(_curr_unique_id), prompt_id, 
+                log_streaming.add_log_buffer(str(_curr_unique_id), node_class, prompt_id, 
                                              buffer_wrapper)
 
             _curr_preview.clear()
@@ -876,6 +876,9 @@ def ComfyNode(
         sig = inspect.signature(func)
         param_names = list(sig.parameters.keys())
         
+        final_display_name = display_name if display_name else " ".join(name_parts)
+        final_workflow_name = workflow_name if workflow_name else "".join(name_parts)
+        
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if curr_config.auto_register == AutoRegisterSentinel.DEFAULT and curr_config.get_node_mappings_called is False:
@@ -965,7 +968,7 @@ def ComfyNode(
             latest_func = _get_latest_version_of_func(func, debug)
             
             result = _call_function_and_verify_result(curr_config, latest_func, args, kwargs, debug, input_desc, adjusted_return_types, wrapped_name,
-                                                      return_names=return_names)
+                                                      node_class=final_workflow_name, return_names=return_names)
 
             return result
 
@@ -988,8 +991,8 @@ def ComfyNode(
             category,
             node_class,
             wrapper,
-            display_name if display_name else " ".join(name_parts),
-            workflow_name if workflow_name else "".join(name_parts),
+            final_display_name,
+            final_workflow_name,
             required_inputs,
             hidden_inputs,
             optional_inputs,

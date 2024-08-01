@@ -225,7 +225,7 @@ app.registerExtension({
     );
     createSetting(
       renderIconsId,
-      "🪄 Render icons on title bar (src & log link + info tooltip). If false, can still be accessed via menu.",
+      "🪄 Render src, log, and info icons in node titlebars. If false, can still be accessed via menu.",
       "boolean",
       true,
     );
