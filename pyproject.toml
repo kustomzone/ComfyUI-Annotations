@@ -14,6 +14,7 @@ dependencies = [
     "torch",
     "pillow",
     "colorama",
+    "coloredlogs",
     "numpy",
     "openai",
 ]
