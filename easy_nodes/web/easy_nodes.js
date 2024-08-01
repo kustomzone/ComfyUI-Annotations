@@ -92,6 +92,9 @@ class FloatingLogWindow {
     this.streamPromise = null;
     this.debounceTimeout = null;
     this.isFirstChunk = true;
+    this.isClicked = false;
+    this.isPinned = false;
+    this.pinButton = null;
   }
 
   create() {
@@ -124,8 +127,27 @@ class FloatingLogWindow {
       color: #e0e0e0;
       font-weight: bold;
       cursor: move;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     `;
-    this.header.textContent = 'Node Log';
+    
+    const title = document.createElement('span');
+    title.textContent = 'Node Log';
+    this.header.appendChild(title);
+
+    this.pinButton = document.createElement('button');
+    this.pinButton.style.cssText = `
+      background: none;
+      border: none;
+      color: #e0e0e0;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 5px;
+    `;
+    this.pinButton.innerHTML = '📌';
+    this.pinButton.title = 'Pin window';
+    this.header.appendChild(this.pinButton);
 
     this.content = document.createElement('div');
     this.content.style.cssText = `
@@ -179,7 +201,6 @@ class FloatingLogWindow {
         this.window.style.width = `${Math.max(this.minWidth, width)}px`;
         this.window.style.height = `${Math.max(this.minHeight, height)}px`;
       }
-      
     };
 
     const onMouseUp = () => {
@@ -190,11 +211,13 @@ class FloatingLogWindow {
     };
 
     this.header.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
+      if (e.target !== this.pinButton) {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      }
     });
 
     this.resizeHandle.addEventListener('mousedown', (e) => {
@@ -208,41 +231,52 @@ class FloatingLogWindow {
     });
 
     this.window.addEventListener('mouseenter', () => {
-      this.mouseOverWindow = true;
       this.cancelHideTimeout();
     });
 
     this.window.addEventListener('mouseleave', () => {
-      this.mouseOverWindow = false;
-      this.scheduleHide();
+      if (!this.isClicked && !this.isPinned) {
+        this.scheduleHide();
+      }
     });
 
     // Add click event listener to the window
     this.window.addEventListener('click', (e) => {
       e.stopPropagation(); // Prevent the click from propagating to the document
+      this.isClicked = true;
+      this.cancelHideTimeout();
     });
 
     // Add global click event listener
     document.addEventListener('click', (e) => {
-      if (this.window && this.window.style.display !== 'none') {
+      if (this.window && this.window.style.display !== 'none' && !this.isPinned) {
+        this.isClicked = false;
         this.hide();
       }
     });
 
-      
+    // Add pin button functionality
+    this.pinButton.addEventListener('click', () => {
+      this.isPinned = !this.isPinned;
+      this.pinButton.innerHTML = this.isPinned ? '📍' : '📌';
+      this.pinButton.title = this.isPinned ? 'Unpin window' : 'Pin window';
+    });
   }
   
   show(x, y, nodeId) {
     if (!this.window) this.create();
 
-    // Convert canvas coordinates to screen coordinates
-    const rect = app.canvas.canvas.getBoundingClientRect();
-    const screenX = (x + rect.left + app.canvas.ds.offset[0]) * app.canvas.ds.scale;
-    const screenY = (y + rect.top + app.canvas.ds.offset[1]) * app.canvas.ds.scale;
+    if (!this.isPinned) {
+      // Convert canvas coordinates to screen coordinates
+      const rect = app.canvas.canvas.getBoundingClientRect();
+      const screenX = (x + rect.left + app.canvas.ds.offset[0]) * app.canvas.ds.scale;
+      const screenY = (y + rect.top + app.canvas.ds.offset[1]) * app.canvas.ds.scale;
+      
+      this.window.style.left = `${screenX}px`;
+      this.window.style.top = `${screenY}px`;
+    }
     
     this.window.style.display = 'flex';
-    this.window.style.left = `${screenX}px`;
-    this.window.style.top = `${screenY}px`;
     
     if (this.currentNodeId !== nodeId) {
       this.currentNodeId = nodeId;
@@ -251,15 +285,14 @@ class FloatingLogWindow {
       this.debouncedStreamLog();
     }
 
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout);
-      this.hideTimeout = null;
-    }
+    this.cancelHideTimeout();
   }
 
   scheduleHide() {
-    this.cancelHideTimeout();
-    this.hideTimeout = setTimeout(() => this.hide(), 300);
+    if (!this.isPinned) {
+      this.cancelHideTimeout();
+      this.hideTimeout = setTimeout(() => this.hide(), 300);
+    }
   }
 
   cancelHideTimeout() {
@@ -270,7 +303,7 @@ class FloatingLogWindow {
   }
 
   hide() {
-    if (this.window) {
+    if (this.window && !this.isClicked && !this.isPinned) {
       this.window.style.display = 'none';
       this.currentNodeId = null;
       this.cancelStream();

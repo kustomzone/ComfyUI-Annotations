@@ -18,17 +18,59 @@ def threshold_image(image: ImageTensor,
 
 That (plus [a tiny bit of initialization](#installation) in `__init__.py`) and your node is ready for ComfyUI! More examples can be found [here](example/example_nodes.py).
 
-Sample node with tooltip and deep source link:
+## ComfyNode Features
 
-<img src="assets/threshold_example.png" alt="The new node with tooltip" width="50%">
+- **@ComfyNode Decorator**: Simplifies the declaration of custom nodes with automagic node declaration based on Python type annotations. Existing Python functions can be converted to ComfyUI nodes with a simple "@ComfyNode()"
+- **Built-in text and image previews**: Just call `easy_nodes.add_preview_text()` and `easy_nodes.add_preview_image()` in the body of your function and EasyNodes will automatically display it, no JavaScript hacking required.
+- **Set node color easily**: No messing with JavaScript, just tell the decorator what color you want the node to be.
+- **Type Support**: Includes several custom types (`ImageTensor`, `MaskTensor`, `NumberInput`, `Choice`, etc.) to support ComfyUI's connection semantics and UI functionality. Register additional types with `register_type`.
+- **Automatic list and tuple handling**: Simply annotate the type as e.g. ```list[torch.Tensor]``` and your function will automatically make sure you get passed a list. It will also auto-tuple your return value for you internally (or leave it alone if you just want to copy your existing code).
+- **Init-time checking**: Less scratching your head when your node doesn't fire off properly later. For example, if you copy-paste a node definition and forget to rename it, @ComfyNode will alert you immediately about duplicate nodes rather than simply overwriting the earlier definition.
+- **Supports most ComfyUI node definition features**: validate_input, is_output_node, etc can be specified as parameters to the ComfyNode decorator.
+- **Convert existing data classes to ComfyUI nodes**: pass `create_field_setter_node` a type, and it will automatically create a new node type with widgets to set all the fields.
+- **LLM-based debugging**: Optional debugging and auto-fixing of exceptions during node execution. Will automatically create a prompt with the relevent context and send it to ChatGPT, create a patch and fix your code.
 
-New settings:
+## Additional Quality of Life Features
+
+ComfyUI-EasyNodes also provides several new QoL features. Some only affect ComfyNodes (e.g. Log Streaming), others are more general (e.g. better stack traces). Look for the 🪄 symbol to find the settings:
 
 <img src="assets/menu_options.png" alt="New menu options" width="50%">
 
-Note that ImageTensor/MaskTensor are just syntactic sugar for semantically differentiating the annotations (allowing ComfyUI to know what plugs into what); your function will still get passed genunine torch.Tensor objects.
+### New badges on node titles
 
-## New in 1.2:
+Hover over the Log streaming, info and source links for new functionality.
+
+<img src="assets/threshold_example.png" alt="The new node with tooltip" width="50%">
+
+### Log Streaming
+
+When hovering over the log icon, you'll see a floating log window that shows you the live output from your node. Clicking the pin will make the window stay even if it loses focus, and clicking the log icon will open the log in a new tab.
+
+<img src="assets/log_streaming.png" alt="Streaming node logs into the UI" width="50%">
+
+### Deep source links
+
+Set the stack trace link prefix to make a "src" link appear on the node title and in the right-click menu. This will take you directly to the file in e.g. VSCode or Github.
+
+### Info
+
+Automatically show the node's description when hovering over the info icon.
+
+### Better stack traces
+
+Setting the stack trace link prefix will give you prettier exception windows, with deep source links.
+
+Old on left, new on right:
+
+<img src="assets/exceptions.png" alt="New menu options" width="50%">
+
+### Preview Image Persistence
+
+Selecting the "Save preview images across browser refreshes" option means you won't have to re-run the node anymore to see the image again, so long as it persists on the server.
+
+## Changelog
+
+### New in 1.2:
 
 - Stream node logs right to your browser; when an EasyNode is run it will show a log icon on the title bar. Clicking this will open up a new tab where you can see the logs accumulated during that node's execution. Icon rendering can be disabled via settings option if you want to keep things cleaner; in this case access via right-click menu option.
 - Added save_node_list function to export nodes to a json file. This can be helpful e.g. for ingestion by ComfyUI-Manager.
@@ -36,7 +78,7 @@ Note that ImageTensor/MaskTensor are just syntactic sugar for semantically diffe
 - Retain preview images across browser refreshes if option is enabled (applies to all ComfyUI nodes)
 - Bug fixes and cleanup.
 
-## New in 1.1:
+### New in 1.1:
 
 - Custom verifiers for types on input and output for your nodes. For example, it will automatically verify that images always have 1, 3 or 4 channels (B&W, RGB and RGBA). Set `verify_level` when calling initialize_easy_nodes to either CheckSeverityMode OFF, WARN, or FATAL (default is WARN). You can write your own verifiers. See [comfy_types.py](easy_nodes/comfy_types.py) for examples of types with verifiers.
 - Expanded ComfyUI type support. See [comfy_types.py](easy_nodes/comfy_types.py) for the full list of registered types.
@@ -44,7 +86,7 @@ Note that ImageTensor/MaskTensor are just syntactic sugar for semantically diffe
   - If you wish to retain the previous behavior, you can enable auto-registration explicitly with `easy_nodes.initialize_easy_nodes(auto_register=True)`.
   - Otherwise, export your nodes the normal way as shown in the [installation](#installation) section.
 
-## New in 1.0:
+### New in 1.0:
 
 - Renamed to ComfyUI-EasyNodes from ComfyUI-Annotations to better reflect the package's goal (rather than the means)
   - Package is now `easy_nodes` rather than `comfy_annotations`
@@ -61,19 +103,6 @@ Note that ImageTensor/MaskTensor are just syntactic sugar for semantically diffe
   - LLM-based debugging: optionally have ChatGPT take a crack at fixing your code
   - Deep links to source code if you set a base source path (e.g. to github or your IDE)
 - Bug fixes
-
-## Features
-
-- **@ComfyNode Decorator**: Simplifies the declaration of custom nodes with automagic node declaration based on Python type annotations. Existing Python functions can be converted to ComfyUI nodes with a simple "@ComfyNode()"
-- **Built-in text and image previews**: Just call `easy_nodes.add_preview_text()` and `easy_nodes.add_preview_image()` in the body of your function and EasyNodes will automatically display it, no JavaScript hacking required.
-- **Set node color easily**: No messing with JavaScript, just tell the decorator what color you want the node to be.
-- **Type Support**: Includes several custom types (`ImageTensor`, `MaskTensor`, `NumberInput`, `Choice`, etc.) to support ComfyUI's connection semantics and UI functionality. Register additional types with `register_type`.
-- **Automatic list and tuple handling**: Simply annotate the type as e.g. ```list[torch.Tensor]``` and your function will automatically make sure you get passed a list. It will also auto-tuple your return value for you internally (or leave it alone if you just want to copy your existing code).
-- **Init-time checking**: Less scratching your head when your node doesn't fire off properly later. For example, if you copy-paste a node definition and forget to rename it, @ComfyNode will alert you immediately about duplicate nodes rather than simply overwriting the earlier definition.
-- **Supports most ComfyUI node definition features**: validate_input, is_output_node, etc can be specified as parameters to the ComfyNode decorator.
-- **Convert existing data classes to ComfyUI nodes**: pass `create_field_setter_node` a type, and it will automatically create a new node type with widgets to set all the fields.
-- **LLM-based debugging**: Optional debugging and auto-fixing of exceptions during node execution. Will automatically create a prompt with the relevent context and send it to ChatGPT, create a patch and fix your code.
-
 
 ## Installation
 

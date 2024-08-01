@@ -192,37 +192,40 @@ def send_footer(response):
 async def show_log(request):
     offset = int(request.rel_url.query.get("offset", "-1"))
     if "node" in request.rel_url.query:
-        node_id = str(request.rel_url.query["node"])
-        if node_id not in _buffers:
-            logging.error(f"Node {node_id} not found in buffers: {_buffers}")
-            return web.json_response({"node not found": node_id,
-                                      "valid nodes": [str(key) for key in _buffers.keys()]}, status=404)
-           
-        response = await send_header(request)
-        node_class, prompt_id, buffer_list = _buffers[node_id]
-        await response.write(convert_text(f"Logs for node {Fore.GREEN}{node_id}{Fore.RESET} ({Fore.GREEN}{node_class}{Fore.RESET}) in prompt {Fore.GREEN}{prompt_id}{Fore.RESET}\n\n"))
-        
-        invocation = 1
-        last_buffer_index = 0
-        while True:
-            for i in range(last_buffer_index, len(buffer_list)):
-                buffer = buffer_list[i]
-                invocation_header = f"======== Node invocation {Fore.GREEN}{invocation:3d}{Fore.RESET} ========\n"
-                await response.write(convert_text(invocation_header))
-                invocation += 1
-                buffer_content = buffer.value()
-                generator = tail_string(buffer_content, offset) if isinstance(buffer_content, str) else tail_buffer(buffer_content, offset)
-                await stream_content(response, generator)
-                last_buffer_index = i + 1
-                response.write("\n\n")
+        try:
+            node_id = str(request.rel_url.query["node"])
+            if node_id not in _buffers:
+                logging.error(f"Node {node_id} not found in buffers: {_buffers}")
+                return web.json_response({"node not found": node_id,
+                                        "valid nodes": [str(key) for key in _buffers.keys()]}, status=404)
             
-            # Wait for a second to check for new logs in case there's more coming.
-            await asyncio.sleep(1)
-            if last_buffer_index >= len(buffer_list):
-                break
+            response = await send_header(request)
+            node_class, prompt_id, buffer_list = _buffers[node_id]
+            await response.write(convert_text(f"Logs for node {Fore.GREEN}{node_id}{Fore.RESET} ({Fore.GREEN}{node_class}{Fore.RESET}) in prompt {Fore.GREEN}{prompt_id}{Fore.RESET}\n\n"))
+            
+            invocation = 1
+            last_buffer_index = 0
+            while True:
+                for i in range(last_buffer_index, len(buffer_list)):
+                    buffer = buffer_list[i]
+                    invocation_header = f"======== Node invocation {Fore.GREEN}{invocation:3d}{Fore.RESET} ========\n"
+                    await response.write(convert_text(invocation_header))
+                    invocation += 1
+                    buffer_content = buffer.value()
+                    generator = tail_string(buffer_content, offset) if isinstance(buffer_content, str) else tail_buffer(buffer_content, offset)
+                    await stream_content(response, generator)
+                    last_buffer_index = i + 1
+                    await response.write("\n\n")
+                
+                # Wait for a second to check for new logs in case there's more coming.
+                await asyncio.sleep(1)
+                if last_buffer_index >= len(buffer_list):
+                    break
 
-        await response.write(b"=====================================\n\nEnd of node logs.</pre></body></html>")
-        
+            await response.write(b"=====================================\n\nEnd of node logs.</pre></body></html>")
+        except Exception as _:
+            pass
+                
         return response
 
     response = await send_header(request)
