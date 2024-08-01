@@ -88,6 +88,10 @@ class FloatingLogWindow {
     this.content = null;
     this.currentNodeId = null;
     this.hideTimeout = null;
+    this.activeStream = null;
+    this.streamPromise = null;
+    this.debounceTimeout = null;
+    this.isFirstChunk = true;
   }
 
   create() {
@@ -102,67 +106,149 @@ class FloatingLogWindow {
       background-color: #1e1e1e;
       border: 1px solid #444;
       border-radius: 5px;
-      padding: 10px;
       box-shadow: 0 0 10px rgba(0,0,0,0.5);
       z-index: 1000;
-      display: none;
-      overflow: hidden;
-    `;
-
-    const header = document.createElement('div');
-    header.style.cssText = `
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
+      flex-direction: column;
+      overflow: hidden;
+      resize: both;
     `;
 
-    const title = document.createElement('h3');
-    title.textContent = 'Node Log';
-    title.style.margin = '0';
+    this.header = document.createElement('div');
+    this.header.style.cssText = `
+      padding: 5px 10px;
+      background-color: #2a2a2a;
+      border-bottom: 1px solid #444;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      color: #e0e0e0;
+      font-weight: bold;
+      cursor: move;
+    `;
+    this.header.textContent = 'Node Log';
 
-    header.appendChild(title);
-
-    this.content = document.createElement('pre');
+    this.content = document.createElement('div');
     this.content.style.cssText = `
-      height: calc(100% - 30px);
+      flex-grow: 1;
       overflow-y: auto;
       margin: 0;
-      padding: 5px;
+      padding: 10px;
       background-color: #252525;
       color: #e0e0e0;
       font-family: monospace;
+      font-size: 12px;
+      line-height: 1.4;
       white-space: pre-wrap;
       word-wrap: break-word;
     `;
 
-    this.window.appendChild(header);
+    this.resizeHandle = document.createElement('div');
+    this.resizeHandle.style.cssText = `
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 10px;
+      height: 10px;
+      cursor: nwse-resize;
+    `;
+
+    this.window.appendChild(this.header);
     this.window.appendChild(this.content);
+    this.window.appendChild(this.resizeHandle);
     document.body.appendChild(this.window);
 
-    // Add event listeners to prevent hiding when hovering over the log window
-    this.window.addEventListener('mouseenter', () => {
-      if (this.hideTimeout) {
-        clearTimeout(this.hideTimeout);
-        this.hideTimeout = null;
+    this.addEventListeners();
+  }
+
+  addEventListeners() {
+    let isDragging = false;
+    let isResizing = false;
+    let startX, startY, startWidth, startHeight;
+
+    const onMouseMove = (e) => {
+      if (isDragging) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        this.window.style.left = `${this.window.offsetLeft + dx}px`;
+        this.window.style.top = `${this.window.offsetTop + dy}px`;
+        startX = e.clientX;
+        startY = e.clientY;
+      } else if (isResizing) {
+        const width = startWidth + (e.clientX - startX);
+        const height = startHeight + (e.clientY - startY);
+        this.window.style.width = `${Math.max(this.minWidth, width)}px`;
+        this.window.style.height = `${Math.max(this.minHeight, height)}px`;
       }
+      
+    };
+
+    const onMouseUp = () => {
+      isDragging = false;
+      isResizing = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    this.header.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    this.resizeHandle.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startWidth = parseInt(document.defaultView.getComputedStyle(this.window).width, 10);
+      startHeight = parseInt(document.defaultView.getComputedStyle(this.window).height, 10);
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    this.window.addEventListener('mouseenter', () => {
+      this.mouseOverWindow = true;
+      this.cancelHideTimeout();
     });
 
     this.window.addEventListener('mouseleave', () => {
+      this.mouseOverWindow = false;
       this.scheduleHide();
     });
-  }
 
+    // Add click event listener to the window
+    this.window.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent the click from propagating to the document
+    });
+
+    // Add global click event listener
+    document.addEventListener('click', (e) => {
+      if (this.window && this.window.style.display !== 'none') {
+        this.hide();
+      }
+    });
+
+      
+  }
+  
   show(x, y, nodeId) {
     if (!this.window) this.create();
-    this.window.style.display = 'block';
-    this.window.style.left = `${x}px`;
-    this.window.style.top = `${y}px`;
+
+    // Convert canvas coordinates to screen coordinates
+    const rect = app.canvas.canvas.getBoundingClientRect();
+    const screenX = (x + rect.left + app.canvas.ds.offset[0]) * app.canvas.ds.scale;
+    const screenY = (y + rect.top + app.canvas.ds.offset[1]) * app.canvas.ds.scale;
+    
+    this.window.style.display = 'flex';
+    this.window.style.left = `${screenX}px`;
+    this.window.style.top = `${screenY}px`;
     
     if (this.currentNodeId !== nodeId) {
       this.currentNodeId = nodeId;
-      this.content.textContent = ''; // Clear previous content
-      this.streamLog();
+      this.content.innerHTML = ''; // Clear previous content
+      this.content.scrollTop = 0; // Reset scroll position
+      this.debouncedStreamLog();
     }
 
     if (this.hideTimeout) {
@@ -172,32 +258,99 @@ class FloatingLogWindow {
   }
 
   scheduleHide() {
-    this.hideTimeout = setTimeout(() => this.hide(), 300); // Hide after 300ms
+    this.cancelHideTimeout();
+    this.hideTimeout = setTimeout(() => this.hide(), 300);
+  }
+
+  cancelHideTimeout() {
+    if (this.hideTimeout) {
+      clearTimeout(this.hideTimeout);
+      this.hideTimeout = null;
+    }
   }
 
   hide() {
     if (this.window) {
       this.window.style.display = 'none';
       this.currentNodeId = null;
+      this.cancelStream();
     }
+  }
+
+  cancelStream() {
+    if (this.activeStream) {
+      this.activeStream.cancel();
+      this.activeStream = null;
+    }
+    if (this.streamPromise) {
+      this.streamPromise.cancel();
+      this.streamPromise = null;
+    }
+  }
+
+  debouncedStreamLog() {
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+    }
+    this.debounceTimeout = setTimeout(() => {
+      this.streamLog();
+    }, 100); // 100ms debounce
   }
 
   async streamLog() {
     if (!this.currentNodeId) return;
 
-    const response = await api.fetchApi(`/easy_nodes/show_log?node=${this.currentNodeId}`);
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    // Cancel any existing stream
+    this.cancelStream();
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      this.content.textContent += text;
-      this.content.scrollTop = this.content.scrollHeight;
-    }
+    // Create a new AbortController for this stream
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    this.streamPromise = (async () => {
+      try {
+        const response = await api.fetchApi(`/easy_nodes/show_log?node=${this.currentNodeId}`, { signal });
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        this.activeStream = reader;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          let text = decoder.decode(value, { stream: true });
+          
+          // Trim initial whitespace only for the first chunk
+          if (this.isFirstChunk) {
+            text = text.trimStart();
+            this.isFirstChunk = false;
+          }
+          
+          // Render HTML
+          this.content.insertAdjacentHTML('beforeend', text);
+          
+          // Only auto-scroll if the user hasn't scrolled up
+          if (this.content.scrollHeight - this.content.scrollTop === this.content.clientHeight) {
+            this.content.scrollTop = this.content.scrollHeight;
+          }
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Error in streamLog:', error);
+        }
+      } finally {
+        this.activeStream = null;
+        this.streamPromise = null;
+      }
+    })();
+
+    // Attach the cancel method to the promise
+    this.streamPromise.cancel = () => {
+      controller.abort();
+    };
   }
 }
+
 
 const floatingLogWindow = new FloatingLogWindow();
 
@@ -605,8 +758,5 @@ api.addEventListener('logs_updated', ({ detail, }) => {
   app.graph._nodes.forEach((node) => {
     let strNodeId = "" + node.id;
     node.has_log = nodesWithLogs.includes(strNodeId);
-    if (node.has_log) {
-      console.log("Node has log: ", strNodeId);
-    }
   });
 }, false);

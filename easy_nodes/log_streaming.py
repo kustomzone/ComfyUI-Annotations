@@ -94,6 +94,33 @@ async def tail_string(content: str, offset: int):
         yield content[-offset:]
 
 
+def minify_html(html):
+    # Remove comments
+    html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
+    # Remove whitespace between tags
+    html = re.sub(r'>\s+<', '><', html)
+    # Remove leading and trailing whitespace
+    html = html.strip()
+    # Combine multiple spaces into one
+    html = re.sub(r'\s+', ' ', html)
+    return html
+
+
+header = minify_html("""<!DOCTYPE html>
+<html>
+<head>
+    <title>ComfyUI Log</title>
+    <style>
+        body { background-color: #1e1e1e; color: #d4d4d4; font-family: monospace; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+        a { color: #5aafff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<pre>""")
+
+
 async def send_header(request) -> web.StreamResponse:
     response = web.StreamResponse(
         status=200,
@@ -101,20 +128,7 @@ async def send_header(request) -> web.StreamResponse:
         headers={'Content-Type': 'text/html'},
     )
     await response.prepare(request)
-    await response.write(
-b"""<!DOCTYPE html>
-<html>
-<head>
-    <title>ComfyUI Log</title>
-    <style>
-        body { background-color: #1e1e1e; color: #d4d4d4; font-family: monospace; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
-        a { color: #5aafff; text-decoration: none; } /* Brighter blue for links */
-        a:hover { text-decoration: underline; } /* Underline on hover for better UX */
-    </style>
-</head>
-<body>
-<pre>""")
+    await response.write(header.encode('utf-8'))
     return response
 
 

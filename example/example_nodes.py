@@ -1,3 +1,4 @@
+import logging
 from random import random
 from easy_nodes import (
     NumberInput,
@@ -169,10 +170,12 @@ def threshold_image(image: ImageTensor, threshold_value: float = NumberInput(0.5
 
 
 # ImageTensor and MaskTensor are just torch.Tensors, so you can treat them as such.
-@ComfyNode(color="#0000FF")
+@ComfyNode(color="#0000FF", is_output_node=True)
 def example_mask_image(image: ImageTensor, 
                        mask: MaskTensor,
                        value: float=NumberInput(0, 0, 1, 0.0001, display="slider")) -> ImageTensor:
+    for i in range(50):
+        logging.info(f"Log line {i}")
     image = image.clone()
     image[mask == 0] = value
     easy_nodes.show_image(image)
