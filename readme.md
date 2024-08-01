@@ -140,6 +140,9 @@ To use this module in your ComfyUI project, follow these steps:
 
     # Export so that ComfyUI can pick them up.
     __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
+    
+    # Optional: export the node list to a file so that e.g. ComfyUI-Manager can pick it up.
+    easy_nodes.save_node_list(os.path.join(os.path.dirname(__file__), "node_list.json"))
     ```
 
     You can also initialize with auto_register=True, in which case you won't have to do anything else after the import. However, this may be problematic for having your nodes indexed so will default to False in a future update (currently not setting it explicitly will auto-register and complain).
