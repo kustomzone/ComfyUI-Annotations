@@ -28,6 +28,14 @@ New settings:
 
 Note that ImageTensor/MaskTensor are just syntactic sugar for semantically differentiating the annotations (allowing ComfyUI to know what plugs into what); your function will still get passed genunine torch.Tensor objects.
 
+## New in 1.2:
+
+- Stream node logs right to your browser; when an EasyNode is run it will show a log icon on the title bar. Clicking this will open up a new tab where you can see the logs accumulated during that node's execution.
+- Added save_node_list function to export nodes to a json file. This can be helpful e.g. for ingestion by ComfyUI-Manager.
+- Set default node width and height.
+- Retain preview images across browser refreshes if option is enabled (applies to all ComfyUI nodes)
+- Bug fixes and cleanup.
+
 ## New in 1.1:
 
 - Custom verifiers for types on input and output for your nodes. For example, it will automatically verify that images always have 1, 3 or 4 channels (B&W, RGB and RGBA). Set `verify_level` when calling initialize_easy_nodes to either CheckSeverityMode OFF, WARN, or FATAL (default is WARN). You can write your own verifiers. See [comfy_types.py](easy_nodes/comfy_types.py) for examples of types with verifiers.
@@ -137,6 +145,8 @@ The settings mostly control defaults and some optional features that I find nice
    - `debug`: A boolean that makes this node print out extra information during its lifecycle.
    - `color`: Changes the node's color.
    - `bg_color`: Changes the node's color. If color is set and not bg_color, bg_color will just be a slightly darker color.
+   - `width`: Default width for this node type on creation.
+   - `height`: Default height for this node type on creation.
 
     Example:
     ```python
