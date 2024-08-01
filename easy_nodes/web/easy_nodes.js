@@ -236,7 +236,7 @@ app.registerExtension({
     if (nodeData?.description?.startsWith(easyNodesJsonPrefix)) {
       // EasyNodes metadata will be crammed into the first line of the description in json format.
       const [nodeInfo, ...descriptionLines] = nodeData.description.split('\n');
-      const { color, bgColor, sourceLocation } = JSON.parse(nodeInfo.replace(easyNodesJsonPrefix, ""));
+      const { color, bgColor, width, height, sourceLocation } = JSON.parse(nodeInfo.replace(easyNodesJsonPrefix, ""));
 
       nodeData.description = descriptionLines.join('\n');
 
@@ -260,6 +260,12 @@ app.registerExtension({
       nodeType.prototype.onNodeCreated = function () {
         onNodeCreated?.apply(this, arguments);
         applyColorsAndSource.call(this);
+        if (width) {
+          this.size[0] = width;
+        }
+        if (height) {
+          this.size[1] = height;
+        }
         this.origWidgetCount = this.widgets?.length ?? 0;
         this.linkWidth = 20;
       };
