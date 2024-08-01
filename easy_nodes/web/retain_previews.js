@@ -42,7 +42,7 @@ app.registerExtension({
                         if (v && v.images && v.images.length > 0) {
                             Promise.all(v.images.map(async (params) => {
                                 try {
-                                    const response = await api.fetchApi("/verify_image?" +
+                                    const response = await api.fetchApi("/easy_nodes/verify_image?" +
                                         new URLSearchParams(params).toString() +
                                         (node.animatedImages ? "" : app.getPreviewFormatParam()) + app.getRandParam());
                                     const data = await response.json();

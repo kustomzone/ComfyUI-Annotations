@@ -7,6 +7,7 @@ import { createSetting } from "./config_service.js";
 const sourcePathPrefixId = "easy_nodes.SourcePathPrefix";
 const editorPathPrefixId = "easy_nodes.EditorPathPrefix";
 const reloadOnEditId = "easy_nodes.ReloadOnEdit";
+const renderIconsId = "easy_nodes.RenderIcons";
 
 
 function resizeShowValueWidgets(node, numValues, app) {
@@ -33,27 +34,44 @@ function resizeShowValueWidgets(node, numValues, app) {
   }
 }
 
+const startOffset = 10;
 
 function renderSourceLinkAndInfo(node, ctx, titleHeight) {
   if (node?.flags?.collapsed) {
     return;
   }
 
+  let currentX = node.size[0] - startOffset;
   if (node.sourceLoc) {
-    const link = node.sourceLoc;
+    node.link = node.sourceLoc;
+
     const linkText = "src";
     ctx.fillStyle = "#2277FF";
+    node.linkWidth = ctx.measureText(linkText).width;
+    currentX -= node.linkWidth;
     ctx.fillText(
       linkText,
-      node.size[0] - titleHeight,
+      currentX,
       LiteGraph.NODE_TITLE_TEXT_Y - titleHeight
     );
-    node.linkWidth = ctx.measureText(linkText).width;
-    node.link = link;
   }
+
   if (node.description?.trim()) {
-    ctx.fillText("ℹ️", node.size[0] - titleHeight - node.linkWidth,
-      LiteGraph.NODE_TITLE_TEXT_Y - titleHeight);
+    const infoText = "  ℹ️  ";
+    node.infoWidth = ctx.measureText(infoText).width;
+    currentX -= node.infoWidth;
+    ctx.fillText(infoText, currentX, LiteGraph.NODE_TITLE_TEXT_Y - titleHeight);
+  } else {
+    node.infoWidth = 0;
+  }
+
+  if (node?.has_log) {
+    const logText = "📜";
+    node.logWidth = ctx.measureText(logText).width;
+    currentX -= node.logWidth;
+    ctx.fillText(logText, currentX, LiteGraph.NODE_TITLE_TEXT_Y - titleHeight);
+  } else {
+    node.logWidth = 0;
   }
 }
 
@@ -63,6 +81,125 @@ function isInsideRectangle(x, y, left, top, width, height) {
   }
   return false;
 }
+
+class FloatingLogWindow {
+  constructor() {
+    this.window = null;
+    this.content = null;
+    this.currentNodeId = null;
+    this.hideTimeout = null;
+  }
+
+  create() {
+    if (this.window) return;
+
+    this.window = document.createElement('div');
+    this.window.className = 'floating-log-window';
+    this.window.style.cssText = `
+      position: absolute;
+      width: 400px;
+      height: 300px;
+      background-color: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 5px;
+      padding: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      z-index: 1000;
+      display: none;
+      overflow: hidden;
+    `;
+
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = 'Node Log';
+    title.style.margin = '0';
+
+    header.appendChild(title);
+
+    this.content = document.createElement('pre');
+    this.content.style.cssText = `
+      height: calc(100% - 30px);
+      overflow-y: auto;
+      margin: 0;
+      padding: 5px;
+      background-color: #252525;
+      color: #e0e0e0;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    `;
+
+    this.window.appendChild(header);
+    this.window.appendChild(this.content);
+    document.body.appendChild(this.window);
+
+    // Add event listeners to prevent hiding when hovering over the log window
+    this.window.addEventListener('mouseenter', () => {
+      if (this.hideTimeout) {
+        clearTimeout(this.hideTimeout);
+        this.hideTimeout = null;
+      }
+    });
+
+    this.window.addEventListener('mouseleave', () => {
+      this.scheduleHide();
+    });
+  }
+
+  show(x, y, nodeId) {
+    if (!this.window) this.create();
+    this.window.style.display = 'block';
+    this.window.style.left = `${x}px`;
+    this.window.style.top = `${y}px`;
+    
+    if (this.currentNodeId !== nodeId) {
+      this.currentNodeId = nodeId;
+      this.content.textContent = ''; // Clear previous content
+      this.streamLog();
+    }
+
+    if (this.hideTimeout) {
+      clearTimeout(this.hideTimeout);
+      this.hideTimeout = null;
+    }
+  }
+
+  scheduleHide() {
+    this.hideTimeout = setTimeout(() => this.hide(), 300); // Hide after 300ms
+  }
+
+  hide() {
+    if (this.window) {
+      this.window.style.display = 'none';
+      this.currentNodeId = null;
+    }
+  }
+
+  async streamLog() {
+    if (!this.currentNodeId) return;
+
+    const response = await api.fetchApi(`/easy_nodes/show_log?node=${this.currentNodeId}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      this.content.textContent += text;
+      this.content.scrollTop = this.content.scrollHeight;
+    }
+  }
+}
+
+const floatingLogWindow = new FloatingLogWindow();
 
 
 app.registerExtension({
@@ -85,6 +222,12 @@ app.registerExtension({
       "🪄 Auto-reload EasyNodes source files on edits.",
       "boolean",
       false,
+    );
+    createSetting(
+      renderIconsId,
+      "🪄 Render icons on title bar (src & log link + info tooltip). If false, can still be accessed via menu.",
+      "boolean",
+      true,
     );
   },
 
@@ -162,9 +305,10 @@ app.registerExtension({
       const onDrawForeground = nodeType.prototype.onDrawForeground;
       nodeType.prototype.onDrawForeground = function (ctx, canvas, graphMouse) {
         onDrawForeground?.apply(this, arguments);
-        renderSourceLinkAndInfo(this, ctx, LiteGraph.NODE_TITLE_HEIGHT); 
+        if (app.ui.settings.getSettingValue(renderIconsId)) {
+          renderSourceLinkAndInfo(this, ctx, LiteGraph.NODE_TITLE_HEIGHT); 
+        }
       };
-
 
       const onDrawBackground = nodeType.prototype.onDrawBackground;
       nodeType.prototype.onDrawBackground = function (ctx, canvas) {
@@ -174,10 +318,50 @@ app.registerExtension({
       const onMouseDown = nodeType.prototype.onMouseDown;
       nodeType.prototype.onMouseDown = function (e, localPos, graphMouse) {
         onMouseDown?.apply(this, arguments);
-        if (this.link && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], this.size[0] - this.linkWidth,
+
+        if (!app.ui.settings.getSettingValue(renderIconsId)) {
+          return;
+        }
+
+        if (this.link && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], this.size[0] - this.linkWidth - startOffset,
           -LiteGraph.NODE_TITLE_HEIGHT, this.linkWidth, LiteGraph.NODE_TITLE_HEIGHT)) {
           window.open(this.link, "_blank");
+          return true;
         }
+
+        const leftPos = this.size[0] - this.linkWidth - this.logWidth - this.infoWidth - startOffset;
+        
+        // Check if log icon is clicked
+        if (this?.has_log && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], leftPos,
+          -LiteGraph.NODE_TITLE_HEIGHT, this.logWidth, LiteGraph.NODE_TITLE_HEIGHT)) {
+          window.open(`/easy_nodes/show_log?node=${this.id}`, "_blank");
+          return true;
+        }
+      };
+
+      const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+      nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
+        getExtraMenuOptions?.apply(this, arguments);
+
+        if (this.sourceLoc) {
+          options.push({
+            content: "Open Source",
+            callback: () => {
+              window.open(this.sourceLoc, "_blank");
+            }
+          });
+        }
+
+        if (this.has_log) {
+          options.push({
+            content: "View Log",
+            callback: () => {
+              window.open(`/easy_nodes/show_log?node=${this.id}`, "_blank");
+            }
+          });
+        }
+
+        return options;
       };
     }
   },
@@ -188,25 +372,30 @@ const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
 LGraphCanvas.prototype.processMouseMove = function(e) {
   const res = origProcessMouseMove.apply(this, arguments);
 
+  if (!app.ui.settings.getSettingValue(renderIconsId)) {
+    return res;
+  }
+
   var node = this.graph.getNodeOnPos(e.canvasX,e.canvasY,this.visible_nodes);
 
   if (!node || !this.canvas || node.flags.collapsed) {
     return res;
   }
 
-  var infoWidth = 20;
-  var infoHeight = LiteGraph.NODE_TITLE_HEIGHT;
+  var linkWidth = node?.linkWidth ?? 0;
+  var linkHeight = LiteGraph.NODE_TITLE_HEIGHT;
 
-  var linkWidth = node.linkWidth * 2;
+  var infoWidth = node?.infoWidth ?? 0;
+  var logWidth = node?.logWidth ?? 0;
 
-  var linkX = node.pos[0] + node.size[0] - linkWidth;
+  var linkX = node.pos[0] + node.size[0] - linkWidth - startOffset;
   var linkY = node.pos[1] - LiteGraph.NODE_TITLE_HEIGHT;
 
-  var infoX = linkX - 20;
+  var infoX = linkX - infoWidth;
   var infoY = linkY;
-  var infoWidth = 20;
-  var infoHeight = LiteGraph.NODE_TITLE_HEIGHT;
-  var linkHeight = LiteGraph.NODE_TITLE_HEIGHT;
+
+  var logX = infoX - logWidth;
+  var logY = linkY;
 
   const desc = node.description?.trim();
   if (node.link && isInsideRectangle(e.canvasX, e.canvasY, linkX, linkY, linkWidth, linkHeight)) {
@@ -214,13 +403,21 @@ LGraphCanvas.prototype.processMouseMove = function(e) {
       this.tooltip_text = node.link;
       this.tooltip_pos = [e.canvasX, e.canvasY];
       this.dirty_canvas = true;
-  } else if (desc && isInsideRectangle(e.canvasX, e.canvasY, infoX, infoY, infoWidth, infoHeight)) {
+  } else if (desc && isInsideRectangle(e.canvasX, e.canvasY, infoX, infoY, infoWidth, linkHeight)) {
       this.canvas.style.cursor = "help";
       this.tooltip_text = desc;
       this.tooltip_pos = [e.canvasX, e.canvasY];
       this.dirty_canvas = true;
+  } else if (node?.has_log && isInsideRectangle(e.canvasX, e.canvasY, logX, logY, logWidth, linkHeight)) {
+      this.canvas.style.cursor = "pointer";
+      this.tooltip_text = "View Log";
+      this.tooltip_pos = [e.canvasX, e.canvasY];
+      this.dirty_canvas = true;
+      
+      floatingLogWindow.show(e.canvasX, e.canvasY, node.id);
   } else {
       this.tooltip_text = null;
+      floatingLogWindow.scheduleHide();
   }
 
   return res;
@@ -393,3 +590,17 @@ api.addEventListener("execution_error", function(e) {
   app.ui.dialog.show(formattedError);
   app.canvas.draw(true, true);
 });
+
+
+api.addEventListener('logs_updated', ({ detail, }) => {
+  let nodesWithLogs = detail.nodes_with_logs;
+  console.log("Nodes with logs: ", nodesWithLogs);
+
+  app.graph._nodes.forEach((node) => {
+    let strNodeId = "" + node.id;
+    node.has_log = nodesWithLogs.includes(strNodeId);
+    if (node.has_log) {
+      console.log("Node has log: ", strNodeId);
+    }
+  });
+}, false);

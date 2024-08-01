@@ -24,9 +24,12 @@ import torch
 from colorama import Fore
 from PIL import Image
 
+import coloredlogs
 import easy_nodes
 import easy_nodes.config_service as config_service
 import easy_nodes.llm_debugging as llm_debugging
+import easy_nodes.log_streaming as log_streaming
+import server
 
 # Export the web directory so ComfyUI can pick up the JavaScript.
 _web_path = os.path.join(os.path.dirname(__file__), "web")
@@ -576,6 +579,34 @@ def _get_latest_version_of_func(func: callable, debug: bool = False):
     return _function_dict[func.__qualname__]
 
 
+def get_formatter():
+    prefix = config_service.get_config_value("easy_nodes.EditorPathPrefix", "")
+    
+    if prefix:
+        fmt=f"%(levelname)s <a href='{prefix}%(pathname)s:%(lineno)s'>%(filename)s:%(lineno)s</a> %(funcName)s: %(message)s"
+    else:
+        fmt="%(levelname)s %(filename)s:%(lineno)s %(funcName)s: %(message)s"
+        
+    coloredFormatter = coloredlogs.ColoredFormatter(
+        fmt=fmt,
+        level_styles=dict(
+            debug=dict(color="white"),
+            info=dict(color="white"),
+            warning=dict(color="yellow", bright=True),
+            error=dict(color="red", bold=True, bright=True),
+            critical=dict(color="black", bold=True, background="red"),
+        ),
+        field_styles=dict(
+            # name=dict(color="white"),
+            # asctime=dict(color="white"),
+            # pathname=dict(color="white"),
+            funcName=dict(color="cyan"),
+            # lineno=dict(color="white"),
+        ),
+    )
+    return coloredFormatter
+
+
 def _call_function_and_verify_result(config: EasyNodesConfig, func: callable, 
                                      args, kwargs, debug, input_desc, adjusted_return_types, 
                                      wrapped_name, return_names=None):
@@ -583,8 +614,11 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
     llm_debugging_enabled = config_service.get_config_value("easy_nodes.llm_debugging", "Off") != "Off"
     max_tries = int(config_service.get_config_value("easy_nodes.max_tries", 1)) if llm_debugging_enabled == "AutoFix" else 1
     
-    logging.debug(f"Running {func.__qualname__} with {max_tries} tries. {llm_debugging_enabled}")
+    logging.debug(f"Running {func.__qualname__} for {_curr_unique_id} with {max_tries} tries. {llm_debugging_enabled}")
 
+    prompt_id = server.PromptServer.instance.last_prompt_id
+    save_logs = True    
+    
     while try_count < max_tries:
         try_count += 1
         try:
@@ -592,10 +626,16 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
             node_logger = logging.getLogger()
             node_logger.setLevel(logging.INFO)
             buffer = io.StringIO()
+            buffer_wrapper = log_streaming.CloseableBufferWrapper(buffer)
+            
             buffer_handler = BufferHandler(buffer)
             node_logger.addHandler(buffer_handler)
-            buffer_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+            buffer_handler.setFormatter(get_formatter())
             sys.stdout = Tee(sys.stdout, buffer)
+            
+            if save_logs:
+                log_streaming.set_log_buffer(str(_curr_unique_id), prompt_id, 
+                                             buffer_wrapper)
 
             _curr_preview.clear()
             result = func(*args, **kwargs)
@@ -635,9 +675,7 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
                 # Calculate the number of interesting stack levels.
                 _, _, tb = sys.exc_info()
                 the_stack = traceback.extract_tb(tb)
-                e.num_interesting_levels = len(the_stack) - 1
-                logging.info(the_stack)
-                
+                e.num_interesting_levels = len(the_stack) - 1                
                 formatted_stack = "\n".join(traceback.format_exception(type(e), e, tb))
                 
                 logging.warning(f"{formatted_stack}")
@@ -650,8 +688,8 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
         finally:
             node_logger.removeHandler(buffer_handler)
             sys.stdout = sys.__stdout__
-            if buffer:
-                buffer.close()
+            if buffer_wrapper:
+                buffer_wrapper.close()
 
     assert False, "Should never reach this point"
     
@@ -865,7 +903,10 @@ def ComfyNode(
                 if key == "unique_id":
                     # logging.info(f"Setting unique_id to {arg}")
                     global _curr_unique_id
-                    _curr_unique_id = arg
+                    if isinstance(arg, list):
+                        _curr_unique_id = arg[0]
+                    else:
+                        _curr_unique_id = arg
             
                 if key not in param_names:
                     # logging.info(f"Removing extra kwarg {key}")
