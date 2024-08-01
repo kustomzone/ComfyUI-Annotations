@@ -13,6 +13,7 @@ requires-python = ">=3.10"
 dependencies = [
     "torch",
     "pillow",
+    "ansi2html",
     "colorama",
     "coloredlogs",
     "numpy",
@@ -50,7 +51,8 @@ include = ["easy_nodes/web/**/*"]
 python = ">=3.10"
 torch = "*"
 pillow = "*"
+ansi2html = "*"
 colorama = "*"
+coloredlogs = "*"
 numpy = "*"
 openai = "*"
-coloredlogs = "*"
