@@ -30,7 +30,7 @@ Note that ImageTensor/MaskTensor are just syntactic sugar for semantically diffe
 
 ## New in 1.2:
 
-- Stream node logs right to your browser; when an EasyNode is run it will show a log icon on the title bar. Clicking this will open up a new tab where you can see the logs accumulated during that node's execution.
+- Stream node logs right to your browser; when an EasyNode is run it will show a log icon on the title bar. Clicking this will open up a new tab where you can see the logs accumulated during that node's execution. Icon rendering can be disabled via settings option if you want to keep things cleaner; in this case access via right-click menu option.
 - Added save_node_list function to export nodes to a json file. This can be helpful e.g. for ingestion by ComfyUI-Manager.
 - Set default node width and height.
 - Retain preview images across browser refreshes if option is enabled (applies to all ComfyUI nodes)
