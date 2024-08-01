@@ -134,6 +134,35 @@ def get_node_mappings():
     return _current_config.NODE_CLASS_MAPPINGS, _current_config.NODE_DISPLAY_NAME_MAPPINGS
 
 
+def save_node_list(filepath: str = "node_list.json"):
+    """
+    Save a list of all registered nodes to a JSON file.
+
+    Args:
+        filepath (str): The path where the JSON file will be saved.
+
+    The resulting JSON file will contain a dictionary where the keys are
+    the display names of the nodes and the values are their descriptions.
+    This can be ingested by ComfyUI-Manager.
+    """
+    node_list = {}
+    
+    for workflow_name, display_name in _current_config.NODE_DISPLAY_NAME_MAPPINGS.items():
+        node_class = _current_config.NODE_CLASS_MAPPINGS[workflow_name]
+        description = getattr(node_class, 'DESCRIPTION', '')
+        
+        # Remove the EasyNodesInfo from the description
+        if description.startswith("EasyNodesInfo="):
+            description = description.split("\n", 1)[1]
+        
+        node_list[display_name] = description.strip().split("\n")[0]
+    
+    with open(filepath, 'w') as f:
+        json.dump(node_list, f, indent=2)
+    
+    print(f"Node list saved to {filepath}")
+
+
 def _get_curr_config() -> EasyNodesConfig:
     if _current_config is None:
         logging.warning("easy_nodes.initialize_easy_nodes() should be called prior to any other EasyNodes activity. Initializing now with easy_nodes.initialize_easy_nodes() for backwards compatibility.")

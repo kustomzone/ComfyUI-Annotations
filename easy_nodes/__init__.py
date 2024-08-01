@@ -23,6 +23,7 @@ from easy_nodes.easy_nodes import (  # noqa: F401
     get_node_mappings,
     initialize_easy_nodes,
     register_type,
+    save_node_list,
     show_image,
     show_text,
 )
