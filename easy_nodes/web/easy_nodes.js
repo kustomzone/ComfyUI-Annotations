@@ -43,17 +43,17 @@ function renderSourceLinkAndInfo(node, ctx, titleHeight) {
 
   let currentX = node.size[0] - startOffset;
   if (node.sourceLoc) {
-    node.link = node.sourceLoc;
-
     const linkText = "src";
     ctx.fillStyle = "#2277FF";
-    node.linkWidth = ctx.measureText(linkText).width;
-    currentX -= node.linkWidth;
+    node.srcLinkWidth = ctx.measureText(linkText).width;
+    currentX -= node.srcLinkWidth;
     ctx.fillText(
       linkText,
       currentX,
       LiteGraph.NODE_TITLE_TEXT_Y - titleHeight
     );
+  } else {
+    node.srcLinkWidth = 0;
   }
 
   if (node.description?.trim()) {
@@ -453,7 +453,6 @@ app.registerExtension({
           this.size[1] = height;
         }
         this.origWidgetCount = this.widgets?.length ?? 0;
-        this.linkWidth = 20;
       };
 
       // Apply colors and source location when configuring the node
@@ -515,13 +514,13 @@ app.registerExtension({
           return;
         }
 
-        if (this.link && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], this.size[0] - this.linkWidth - startOffset,
-          -LiteGraph.NODE_TITLE_HEIGHT, this.linkWidth, LiteGraph.NODE_TITLE_HEIGHT)) {
+        if (this.link && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], this.size[0] - this.srcLinkWidth - startOffset,
+          -LiteGraph.NODE_TITLE_HEIGHT, this.srcLinkWidth, LiteGraph.NODE_TITLE_HEIGHT)) {
           window.open(this.link, "_blank");
           return true;
         }
 
-        const leftPos = this.size[0] - this.linkWidth - this.logWidth - this.infoWidth - startOffset;
+        const leftPos = this.size[0] - this.srcLinkWidth - this.logWidth - this.infoWidth - startOffset;
         
         // Check if log icon is clicked
         if (this?.has_log && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], leftPos,
@@ -574,13 +573,13 @@ LGraphCanvas.prototype.processMouseMove = function(e) {
     return res;
   }
 
-  var linkWidth = node?.linkWidth ?? 0;
+  var srcLinkWidth = node?.srcLinkWidth ?? 0;
   var linkHeight = LiteGraph.NODE_TITLE_HEIGHT;
 
   var infoWidth = node?.infoWidth ?? 0;
   var logWidth = node?.logWidth ?? 0;
 
-  var linkX = node.pos[0] + node.size[0] - linkWidth - startOffset;
+  var linkX = node.pos[0] + node.size[0] - srcLinkWidth - startOffset;
   var linkY = node.pos[1] - LiteGraph.NODE_TITLE_HEIGHT;
 
   var infoX = linkX - infoWidth;
@@ -590,7 +589,7 @@ LGraphCanvas.prototype.processMouseMove = function(e) {
   var logY = linkY;
 
   const desc = node.description?.trim();
-  if (node.link && isInsideRectangle(e.canvasX, e.canvasY, linkX, linkY, linkWidth, linkHeight)) {
+  if (node.link && isInsideRectangle(e.canvasX, e.canvasY, linkX, linkY, srcLinkWidth, linkHeight)) {
       this.canvas.style.cursor = "pointer";
       this.tooltip_text = node.link;
       this.tooltip_pos = [e.canvasX, e.canvasY];
