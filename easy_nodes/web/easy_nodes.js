@@ -43,6 +43,8 @@ function renderSourceLinkAndInfo(node, ctx, titleHeight) {
 
   let currentX = node.size[0] - startOffset;
   if (node.sourceLoc) {
+    node.srcLink = node.sourceLoc;
+
     const linkText = "src";
     ctx.fillStyle = "#2277FF";
     node.srcLinkWidth = ctx.measureText(linkText).width;
@@ -455,7 +457,7 @@ app.registerExtension({
         this.origWidgetCount = this.widgets?.length ?? 0;
       };
 
-      // Apply colors and source location when configuring the node
+      // Apply color and source location when configuring the node
       const onConfigure = nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure = function () {
         onConfigure?.apply(this, arguments);
@@ -514,9 +516,9 @@ app.registerExtension({
           return;
         }
 
-        if (this.link && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], this.size[0] - this.srcLinkWidth - startOffset,
+        if (this.srcLink && !this.flags.collapsed && isInsideRectangle(localPos[0], localPos[1], this.size[0] - this.srcLinkWidth - startOffset,
           -LiteGraph.NODE_TITLE_HEIGHT, this.srcLinkWidth, LiteGraph.NODE_TITLE_HEIGHT)) {
-          window.open(this.link, "_blank");
+          window.open(this.srcLink, "_blank");
           return true;
         }
 
@@ -589,9 +591,9 @@ LGraphCanvas.prototype.processMouseMove = function(e) {
   var logY = linkY;
 
   const desc = node.description?.trim();
-  if (node.link && isInsideRectangle(e.canvasX, e.canvasY, linkX, linkY, srcLinkWidth, linkHeight)) {
+  if (node.srcLink && isInsideRectangle(e.canvasX, e.canvasY, linkX, linkY, srcLinkWidth, linkHeight)) {
       this.canvas.style.cursor = "pointer";
-      this.tooltip_text = node.link;
+      this.tooltip_text = node.srcLink;
       this.tooltip_pos = [e.canvasX, e.canvasY];
       this.dirty_canvas = true;
   } else if (desc && isInsideRectangle(e.canvasX, e.canvasY, infoX, infoY, infoWidth, linkHeight)) {
