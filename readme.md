@@ -47,12 +47,11 @@ More examples can be found [here](example/example_nodes.py).
 
 ## New Features in Action
 
-<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px; max-width: 600px;">
-    <div><img src="assets/threshold_example.png" alt="basic example" style="width: 100%;">New icons on node titlebars: Logs, Info, and Source.<br>Node colors set via @ComfyNode decorator.</div>
-    <div><img src="assets/log_streaming.png" alt="Log streaming" style="width: 100%;">Live log streaming. Just hover over the 📜 icon, and click the pin to make the window persistent.</div>
-    <div><img src="assets/menu_options.png" alt="New menu options" style="width: 100%;">All options.</div>
-    <div><img src="assets/exceptions.png" alt="Better stack traces">Better stack traces. Set the stack trace prefix to get prettier dialogues with links directly to the source locations.</div>
-</div>
+|||
+|------|-------|
+|<img src="assets/threshold_example.png" alt="basic example" style="width: 100%;">New icons on node titlebars: Logs, Info, and Source.<br>Node colors set via @ComfyNode decorator.|<img src="assets/log_streaming.png" alt="Log streaming" style="width: 100%;">Live log streaming. Just hover over the 📜 icon, and click the pin to make the window persistent.|
+|<img src="assets/menu_options.png" alt="New menu options" style="width: 100%;">All options.|<img src="assets/exceptions.png" alt="Better stack traces">Better stack traces. Set the stack trace prefix to get prettier dialogues with links directly to the source locations.|
+
 
 ## Changelog
 
