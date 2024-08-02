@@ -1,8 +1,8 @@
 # Effortless Nodes for ComfyUI
 
-This package aims to make adding new [ComfyUI](https://github.com/comfyanonymous/ComfyUI) nodes as easy as possible, and to provide functionality through pure Python that was previously only accessible with custom JavaScript.
+This package aims to make adding new [ComfyUI](https://github.com/comfyanonymous/ComfyUI) nodes as easy as possible, allowing you to write basic annotated Python and automatically turn it ComfyUI node definitions with a simple `@ComfyNode` annotation.
 
-It processes your function's Python signature to create the node definition ComfyUI is expecting. All you have to do is annotate your inputs and outputs and add the `@ComfyNode` decorator.
+In addition, it provides enhanced node customization previously only available with custom JavaScript (e.g. color, and adding preview images/text), and several general ComfyUI quality of life improvements.
 
 For example:
 ```python
@@ -16,57 +16,43 @@ def threshold_image(image: ImageTensor,
     return mask_below.float(), (~mask_below).float()
 ```
 
-That (plus [a tiny bit of initialization](#installation) in `__init__.py`) and your node is ready for ComfyUI! More examples can be found [here](example/example_nodes.py).
+That (plus [some simple initialization](#installation) in `__init__.py`) and your node is ready for ComfyUI!
 
-## ComfyNode Features
+More example nodes can be found [here](example/example_nodes.py).
 
-- **@ComfyNode Decorator**: Simplifies the declaration of custom nodes with automagic node declaration based on Python type annotations. Existing Python functions can be converted to ComfyUI nodes with a simple "@ComfyNode()"
-- **Built-in text and image previews**: Just call `easy_nodes.add_preview_text()` and `easy_nodes.add_preview_image()` in the body of your function and EasyNodes will automatically display it, no JavaScript hacking required.
-- **Set node color easily**: No messing with JavaScript, just tell the decorator what color you want the node to be.
-- **Type Support**: Includes several custom types (`ImageTensor`, `MaskTensor`, `NumberInput`, `Choice`, etc.) to support ComfyUI's connection semantics and UI functionality. Register additional types with `register_type`.
-- **Automatic list and tuple handling**: Simply annotate the type as e.g. ```list[torch.Tensor]``` and your function will automatically make sure you get passed a list. It will also auto-tuple your return value for you internally (or leave it alone if you just want to copy your existing code).
-- **Init-time checking**: Less scratching your head when your node doesn't fire off properly later. For example, if you copy-paste a node definition and forget to rename it, @ComfyNode will alert you immediately about duplicate nodes rather than simply overwriting the earlier definition.
-- **Supports most ComfyUI node definition features**: validate_input, is_output_node, etc can be specified as parameters to the ComfyNode decorator.
-- **Convert existing data classes to ComfyUI nodes**: pass `create_field_setter_node` a type, and it will automatically create a new node type with widgets to set all the fields.
-- **LLM-based debugging**: Optional debugging and auto-fixing of exceptions during node execution. Will automatically create a prompt with the relevent context and send it to ChatGPT, create a patch and fix your code.
+## Features
 
-## Additional Quality of Life Features
+### Core Functionality
+- **@ComfyNode Decorator**: Simplifies custom node declaration with automagic node definition based on Python type annotations. Just write annotated Python and turn your functions into nodes with a simple @ComfyNode decorator.
+- **ComfyUI Type Support**: Includes common types (e.g., ImageTensor, MaskTensor) to support ComfyUI's connection semantics. Register your own custom types with `easy_nodes.register_type()`
+- **Widget Support**: Special classes (StringInput, NumberInput and Choice) provide full support for ComfyUI's widget behavior when used as defaults to int, float and string inputs. 
+- **Automatic List and Tuple Handling**: Simplifies input/output for functions expecting or returning collections.
+- **Init-time andChecking**: Provides early alerts for common setup issues like duplicate node definitions.
+- **Built-in Text and Image Previews**: Easily add previews to nodes without JavaScript using `easy_nodes.add_preview_text()` and `easy_nodes.add_preview_image()`.
+- **Change node defaults**: Set node colors and initial dimensions via the decorator, also avoiding the need to write custom JavaScript.
 
-ComfyUI-EasyNodes also provides several new QoL features. Some only affect ComfyNodes (e.g. Log Streaming), others are more general (e.g. better stack traces). Look for the 🪄 symbol to find the settings:
+### Advanced Features
+- **Dynamic Node Creation**: Automatically create nodes from existing Python classes, adding widgets for every field (for basic types like string, int and float).
+- **ComfyUI Node Definition Support**: Includes options for validate_input, is_output_node, and other ComfyUI-specific features.
+- **Log Streaming**: Stream node logs directly to the browser for real-time debugging. Just hover the mouse over the 📜 icon to show the latest captured log from that node in a pop-up window, or click through to open in a new tab.
+- **Deep Source Links**: Quick access to the source code for your nodes in IDEs or GitHub when base paths are configured in options.
+- **Info Tooltips**: Auto-generated from function docstrings.
+- **Custom Type Verification**: Verify tensor shapes and data types according to catch problematic behavior early.
+- **LLM-based Debugging**: Optional ChatGPT-powered debugging and automatic code fixing for exceptions during node execution.
 
-<img src="assets/menu_options.png" alt="New menu options" width="50%">
+### ComfyUI Quality of Life Improvements
+- **Better Stack Traces**: Enhanced exception windows with deep source links when configured (works for all nodes).
+- **Preview Image Persistence**: Keep your preview images across browser sessions, so that you don't have to re-run your prompts just to see them again.
+- **Automatic Module Reloading**: Immediately see code changes to EasyNodes nodes on the next run with this optional setting, saving you time that would normally be spent restarting ComfyUI.
 
-### New badges on node titles
+## New Features in Action
 
-Hover over the Log streaming, info and source links for new functionality.
-
-<img src="assets/threshold_example.png" alt="The new node with tooltip" width="50%">
-
-### Log Streaming
-
-When hovering over the log icon, you'll see a floating log window that shows you the live output from your node. Clicking the pin will make the window stay even if it loses focus, and clicking the log icon will open the log in a new tab.
-
-<img src="assets/log_streaming.png" alt="Streaming node logs into the UI" width="50%">
-
-### Deep source links
-
-Set the stack trace link prefix to make a "src" link appear on the node title and in the right-click menu. This will take you directly to the file in e.g. VSCode or Github.
-
-### Info
-
-Automatically show the node's description when hovering over the info icon.
-
-### Better stack traces
-
-Setting the stack trace link prefix will give you prettier exception windows, with deep source links.
-
-Old on left, new on right:
-
-<img src="assets/exceptions.png" alt="New menu options" width="50%">
-
-### Preview Image Persistence
-
-Selecting the "Save preview images across browser refreshes" option means you won't have to re-run the node anymore to see the image again, so long as it persists on the server.
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px; max-width: 600px;">
+    <div><img src="assets/threshold_example.png" alt="basic example" style="width: 100%;">New icons on node titlebars: Logs, Info, and Source.<br>Node colors set via @ComfyNode decorator.</div>
+    <div><img src="assets/log_streaming.png" alt="Log streaming" style="width: 100%;">Live log streaming. Just hover over the 📜 icon, and click the pin to make the window persistent.</div>
+    <div><img src="assets/menu_options.png" alt="New menu options" style="width: 100%;">All options.</div>
+    <div><img src="assets/exceptions.png" alt="Better stack traces">Better stack traces. Set the stack trace prefix to get prettier dialogues with links directly to the source locations.</div>
+</div>
 
 ## Changelog
 
