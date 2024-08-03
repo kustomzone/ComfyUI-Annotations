@@ -2,8 +2,6 @@
 
 This package aims to make adding new [ComfyUI](https://github.com/comfyanonymous/ComfyUI) nodes as easy as possible, allowing you to write basic annotated Python and automatically turn it into a ComfyUI node definition via a simple `@ComfyNode` annotation.
 
-In addition, it provides enhanced node customization previously only available with custom JavaScript (e.g. color, and adding preview images/text), and several general ComfyUI quality of life improvements.
-
 For example:
 ```python
 from easy_nodes import ComfyNode, ImageTensor, MaskTensor, NumberInput
@@ -17,6 +15,8 @@ def threshold_image(image: ImageTensor,
 ```
 
 That (plus [a tiny bit of initialization](#installation) in `__init__.py`) and your node is ready for ComfyUI!
+
+In addition, it provides enhanced node customization previously only available with custom JavaScript (e.g. color, and adding preview images/text), and several general ComfyUI quality of life improvements.
 
 More examples can be found [here](example/example_nodes.py).
 
