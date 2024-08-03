@@ -28,7 +28,7 @@ More examples can be found [here](example/example_nodes.py).
 - **Widget Support**: Special classes (StringInput, NumberInput and Choice) provide full support for ComfyUI's widget behavior when used as defaults to int, float and string inputs. 
 - **Automatic List and Tuple Handling**: Simplifies input/output for functions expecting or returning collections.
 - **Init-time andChecking**: Provides early alerts for common setup issues like duplicate node definitions.
-- **Built-in Text and Image Previews**: Easily add previews to nodes without JavaScript using `easy_nodes.add_preview_text()` and `easy_nodes.add_preview_image()`.
+- **Built-in Text and Image Previews**: Easily add previews to nodes without JavaScript using `easy_nodes.show_text()` and `easy_nodes.show_image()`.
 - **Change node defaults**: Set node colors and initial dimensions via the decorator, also avoiding the need to write custom JavaScript.
 
 ### Advanced Features
@@ -59,7 +59,7 @@ More examples can be found [here](example/example_nodes.py).
 
 - Stream node logs right to your browser; when an EasyNode is run it will show a log icon on the title bar. Clicking this will open up a new tab where you can see the logs accumulated during that node's execution. Icon rendering can be disabled via settings option if you want to keep things cleaner; in this case access via right-click menu option.
 - Added save_node_list function to export nodes to a json file. This can be helpful e.g. for ingestion by ComfyUI-Manager.
-- Set default node width and height.
+- Set default node width and height, and add force_input to NumberInput (thanks isaacwasserman)
 - Retain preview images across browser refreshes if option is enabled (applies to all ComfyUI nodes)
 - Bug fixes and cleanup.
 
