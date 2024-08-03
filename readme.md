@@ -1,6 +1,6 @@
 # Effortless Nodes for ComfyUI
 
-This package aims to make adding new [ComfyUI](https://github.com/comfyanonymous/ComfyUI) nodes as easy as possible, allowing you to write basic annotated Python and automatically turn it ComfyUI node definitions with a simple `@ComfyNode` annotation.
+This package aims to make adding new [ComfyUI](https://github.com/comfyanonymous/ComfyUI) nodes as easy as possible, allowing you to write basic annotated Python and automatically turn it into a ComfyUI node definition via a simple `@ComfyNode` annotation.
 
 In addition, it provides enhanced node customization previously only available with custom JavaScript (e.g. color, and adding preview images/text), and several general ComfyUI quality of life improvements.
 
@@ -191,7 +191,7 @@ The settings mostly control defaults and some optional features that I find nice
 
 ### Registering new types:
 
-Say you want a new type of special Tensor that ComfyUI will treat differently from Images. Perhaps a rotation matrix. Just create a placeholder class for it and use that in your annotations -- it's just for semantics; internally your functions will get whatever type of class they're handed (though with the verification settings turned on, you can still be assured it's a Tensor object (and you are free to create your own custom verifier for more control)).
+Say you want a new type of special Tensor that ComfyUI will treat differently from Images; perhaps a rotation matrix. Just create a placeholder class for it and use that in your annotations -- it's just for semantics; internally your functions will get whatever type of class they're handed (though with the verification settings turned on, you can still be assured it's a Tensor object (and you are free to create your own custom verifier for more control).
 
 ```python
 class RotationMatrix(torch.Tensor):
