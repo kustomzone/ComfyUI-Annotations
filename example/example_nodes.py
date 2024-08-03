@@ -138,7 +138,7 @@ def text_repeater(text: str=StringInput("Sample text"),
 @ComfyNode()
 def combine_lists(
     image1: list[ImageTensor], image2: list[ImageTensor]
-) -> list[ImageTensor]:
+) -> list[ImageTensor]: 
     combined_lists = image1 + image2
     return combined_lists
 
@@ -166,6 +166,10 @@ def example_show_mask(mask: MaskTensor) -> MaskTensor:
 def threshold_image(image: ImageTensor, threshold_value: float = NumberInput(0.5, 0, 1, 0.0001, display="slider")) -> tuple[MaskTensor, MaskTensor]:
     """Returns separate masks for values above and below the threshold value."""
     mask_below = torch.any(image < threshold_value, dim=-1).squeeze(-1)
+    
+    logging.info(f"Number of pixels below threshold: {mask_below.sum()}")
+    logging.info(f"Number of pixels above threshold: {(~mask_below).sum()}")
+    
     return mask_below.float(), (~mask_below).float()
 
 
@@ -174,6 +178,7 @@ def threshold_image(image: ImageTensor, threshold_value: float = NumberInput(0.5
 def example_mask_image(image: ImageTensor, 
                        mask: MaskTensor,
                        value: float=NumberInput(0, 0, 1, 0.0001, display="slider")) -> ImageTensor:
+    """Just your basic image masking node."""
     for i in range(50):
         logging.info(f"Log line {i}")
     image = image.clone()

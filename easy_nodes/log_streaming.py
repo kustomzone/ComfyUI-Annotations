@@ -183,8 +183,8 @@ async def stream_content(response, content_generator):
         return response
 
 
-def send_footer(response):
-    response.write(b"</pre></body></html>")
+async def send_footer(response):
+    await response.write(b"</pre></body></html>")
     response.force_close()
     
 
@@ -207,22 +207,24 @@ async def show_log(request):
             last_buffer_index = 0
             while True:
                 for i in range(last_buffer_index, len(buffer_list)):
-                    buffer = buffer_list[i]
+                    input_desc, buffer = buffer_list[i]
+                    input_desc_str = "\n".join(input_desc) if isinstance(input_desc, list) else input_desc
                     invocation_header = f"======== Node invocation {Fore.GREEN}{invocation:3d}{Fore.RESET} ========\n"
                     await response.write(convert_text(invocation_header))
+                    await response.write(convert_text(f"Params passed to node:\n{Fore.CYAN}{input_desc_str}{Fore.RESET}\n--\n"))
                     invocation += 1
                     buffer_content = buffer.value()
                     generator = tail_string(buffer_content, offset) if isinstance(buffer_content, str) else tail_buffer(buffer_content, offset)
                     await stream_content(response, generator)
                     last_buffer_index = i + 1
-                    await response.write("\n\n")
                 
                 # Wait for a second to check for new logs in case there's more coming.
                 await asyncio.sleep(1)
                 if last_buffer_index >= len(buffer_list):
                     break
-
-            await response.write(b"=====================================\n\nEnd of node logs.</pre></body></html>")
+                
+            await response.write(b"=====================================\n\nEnd of node logs.")
+            await send_footer(response)
         except Exception as _:
             pass
                 
@@ -230,11 +232,12 @@ async def show_log(request):
 
     response = await send_header(request)
     await stream_content(request, tail_file("comfyui.log", offset), response)
-    send_footer(response)
+    await send_footer(response)
     return response
     
 
-def add_log_buffer(node_id: str, node_class: str, prompt_id: str, buffer_wrapper: CloseableBufferWrapper):
+def add_log_buffer(node_id: str, node_class: str, prompt_id: str, input_desc: str, 
+                   buffer_wrapper: CloseableBufferWrapper):
     node_id = str(node_id)
     
     if node_id in _buffers:
@@ -248,7 +251,7 @@ def add_log_buffer(node_id: str, node_class: str, prompt_id: str, buffer_wrapper
         log_list = []
         _buffers[node_id] = (node_class, prompt_id, log_list)
 
-    log_list.append(buffer_wrapper)
+    log_list.append((input_desc, buffer_wrapper))
 
     nodes_with_logs = [key for key in _buffers.keys()]
     PromptServer.instance.send_sync("logs_updated", {"nodes_with_logs": nodes_with_logs}, None)

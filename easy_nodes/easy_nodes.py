@@ -18,18 +18,18 @@ from importlib import import_module
 from pathlib import Path
 from typing import Callable, Dict, Union, get_args, get_origin
 
+import coloredlogs
 import nodes as comfyui_nodes
 import numpy as np
+import server
 import torch
 from colorama import Fore
 from PIL import Image
 
-import coloredlogs
 import easy_nodes
 import easy_nodes.config_service as config_service
 import easy_nodes.llm_debugging as llm_debugging
 import easy_nodes.log_streaming as log_streaming
-import server
 
 # Export the web directory so ComfyUI can pick up the JavaScript.
 _web_path = os.path.join(os.path.dirname(__file__), "web")
@@ -666,7 +666,7 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
             sys.stdout = Tee(sys.stdout, buffer)
             
             if save_logs:
-                log_streaming.add_log_buffer(str(_curr_unique_id), node_class, prompt_id, 
+                log_streaming.add_log_buffer(str(_curr_unique_id), node_class, prompt_id, input_desc,
                                              buffer_wrapper)
 
             _curr_preview.clear()
