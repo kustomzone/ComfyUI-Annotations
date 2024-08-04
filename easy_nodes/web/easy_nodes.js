@@ -265,6 +265,12 @@ class FloatingLogWindow {
     });
   }
   
+  resetStream() {
+      this.content.innerHTML = ''; // Clear previous content
+      this.content.scrollTop = 0; // Reset scroll position
+      this.streamLog();
+  }
+
   show(x, y, nodeId) {
     if (!this.window) this.create();
 
@@ -279,7 +285,7 @@ class FloatingLogWindow {
     }
     
     this.window.style.display = 'flex';
-    
+
     if (this.currentNodeId !== nodeId) {
       this.currentNodeId = nodeId;
       this.content.innerHTML = ''; // Clear previous content
@@ -787,10 +793,18 @@ api.addEventListener("execution_error", function(e) {
 
 api.addEventListener('logs_updated', ({ detail, }) => {
   let nodesWithLogs = detail.nodes_with_logs;
+  let prompt_id = detail.prompt_id;
+
   console.log("Nodes with logs: ", nodesWithLogs);
 
   app.graph._nodes.forEach((node) => {
     let strNodeId = "" + node.id;
     node.has_log = nodesWithLogs.includes(strNodeId);
   });
+
+  // If the floating log window is showing logs for a node that has a new log, refresh it:
+  console.log("Current node id: ", floatingLogWindow.currentNodeId);
+  if (floatingLogWindow.currentNodeId && nodesWithLogs.includes(floatingLogWindow.currentNodeId + "")) {
+    floatingLogWindow.resetStream();
+  }
 }, false);

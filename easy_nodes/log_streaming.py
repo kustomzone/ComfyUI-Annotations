@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import re
+import traceback
 from typing import Dict, List, Tuple
 
 import folder_paths
@@ -186,7 +187,7 @@ async def stream_content(response, content_generator):
 async def send_footer(response):
     await response.write(b"</pre></body></html>")
     response.force_close()
-    
+
 
 @routes.get("/easy_nodes/show_log")
 async def show_log(request):
@@ -225,8 +226,8 @@ async def show_log(request):
                 
             await response.write(b"=====================================\n\nEnd of node logs.")
             await send_footer(response)
-        except Exception as _:
-            pass
+        except Exception as e:
+            logging.error(f"Error in show_log: {str(e)} stack trace: {traceback.format_exc()}")
                 
         return response
 
@@ -254,7 +255,7 @@ def add_log_buffer(node_id: str, node_class: str, prompt_id: str, input_desc: st
     log_list.append((input_desc, buffer_wrapper))
 
     nodes_with_logs = [key for key in _buffers.keys()]
-    PromptServer.instance.send_sync("logs_updated", {"nodes_with_logs": nodes_with_logs}, None)
+    PromptServer.instance.send_sync("logs_updated", {"nodes_with_logs": nodes_with_logs, "prompt_id": prompt_id}, None)
 
 
 @routes.get("/easy_nodes/verify_image")
