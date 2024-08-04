@@ -1,6 +1,5 @@
 import { api } from '../../scripts/api.js';
 
-console.log('Loading log_streaming.js');
 
 class FloatingLogWindow {
   constructor() {
@@ -253,7 +252,7 @@ class FloatingLogWindow {
     }
     this.debounceTimeout = setTimeout(() => {
       this.streamLog();
-    }, 100); // 100ms debounce
+    }, 100);
   }
 
   async streamLog() {
@@ -331,6 +330,3 @@ api.addEventListener('logs_updated', ({ detail, }) => {
     floatingLogWindow.resetStream();
   }
 }, false);
-
-
-console.log("Loaded log_streaming.js");
