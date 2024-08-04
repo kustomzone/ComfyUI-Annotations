@@ -1,4 +1,5 @@
 import { api } from '../../scripts/api.js';
+import { app } from "../../../scripts/app.js";
 
 
 class FloatingLogWindow {
@@ -330,3 +331,16 @@ api.addEventListener('logs_updated', ({ detail, }) => {
     floatingLogWindow.resetStream();
   }
 }, false);
+
+app.registerExtension({
+    name: "EasyNodes.log_streaming",
+    async setup(app) {
+        console.log("Setting up log streaming extension");
+    },
+    async afterConfigureGraph(missingNodeTypes) {
+        console.log("After configure graph");
+        // hit the /easy_nodes/trigger_log endpoint to make the server send the message we're listening for
+        await api.fetchApi('/easy_nodes/trigger_log', { method: 'POST' });
+    },
+});
+

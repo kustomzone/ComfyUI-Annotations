@@ -35,6 +35,7 @@ class CloseableBufferWrapper:
 
 # Keyed on node ID, first value of tuple is prompt_id.
 _buffers: Dict[str, Tuple[str, List[CloseableBufferWrapper]]] = {}
+_prompt_id = None
 
 
 async def tail_file(filename, offset):
@@ -187,6 +188,16 @@ async def stream_content(response, content_generator):
 async def send_footer(response):
     await response.write(b"</pre></body></html>")
     response.force_close()
+    
+def send_node_update():    
+    nodes_with_logs = [key for key in _buffers.keys()]
+    PromptServer.instance.send_sync("logs_updated", {"nodes_with_logs": nodes_with_logs, "prompt_id": _prompt_id}, None)
+
+
+@routes.post("/easy_nodes/trigger_log")
+async def trigger_log(request):
+    send_node_update()
+    return web.Response(status=200)
 
 
 @routes.get("/easy_nodes/show_log")
@@ -224,7 +235,7 @@ async def show_log(request):
                 if last_buffer_index >= len(buffer_list):
                     break
                 
-            await response.write(b"=====================================\n\nEnd of node logs.")
+            await response.write(convert_text("=====================================\n\nEnd of node logs."))
             await send_footer(response)
         except Exception as e:
             logging.error(f"Error in show_log: {str(e)} stack trace: {traceback.format_exc()}")
@@ -239,6 +250,9 @@ async def show_log(request):
 
 def add_log_buffer(node_id: str, node_class: str, prompt_id: str, input_desc: str, 
                    buffer_wrapper: CloseableBufferWrapper):
+    global _prompt_id
+    _prompt_id = prompt_id
+    
     node_id = str(node_id)
     
     if node_id in _buffers:
@@ -253,9 +267,7 @@ def add_log_buffer(node_id: str, node_class: str, prompt_id: str, input_desc: st
         _buffers[node_id] = (node_class, prompt_id, log_list)
 
     log_list.append((input_desc, buffer_wrapper))
-
-    nodes_with_logs = [key for key in _buffers.keys()]
-    PromptServer.instance.send_sync("logs_updated", {"nodes_with_logs": nodes_with_logs, "prompt_id": prompt_id}, None)
+    send_node_update()
 
 
 @routes.get("/easy_nodes/verify_image")
