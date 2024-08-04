@@ -21,13 +21,11 @@ app.registerExtension({
             return;
         }
 
-        const previewTypes = [
-            "PreviewImage", "PreviewMask", "PreviewDepth", "PreviewNormal",
-             "AnythingCache", "PlotLosses", "SaveAnimatedPNG", "SaveImage"];
+        const previewTypes = ["PreviewImage", "SaveAnimatedPNG", "SaveAnimatedWEBP", "SaveImage"];
 
-        if (previewTypes.includes(nodeData.name)) {
-            console.log("Found preview node: " + nodeData.name);
-
+        if (nodeData.description?.startsWith("EasyNodesInfo=") || 
+            nodeData?.isEasyNode ||
+            previewTypes.includes(nodeData.name)) {
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             nodeType.prototype.onNodeCreated = function() {
                 onNodeCreated?.apply(this);

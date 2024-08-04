@@ -428,6 +428,7 @@ app.registerExtension({
   async beforeRegisterNodeDef(nodeType, nodeData, app) {
     const easyNodesJsonPrefix = "EasyNodesInfo=";
     if (nodeData?.description?.startsWith(easyNodesJsonPrefix)) {
+      nodeData.isEasyNode = true;
       // EasyNodes metadata will be crammed into the first line of the description in json format.
       const [nodeInfo, ...descriptionLines] = nodeData.description.split('\n');
       const { color, bgColor, width, height, sourceLocation } = JSON.parse(nodeInfo.replace(easyNodesJsonPrefix, ""));
