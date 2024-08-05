@@ -136,10 +136,7 @@ async def send_header(request) -> web.StreamResponse:
 
 _converter = Ansi2HTMLConverter(inline=True)
 
-def convert_text(text: str):
-    with open("unconverted.html", "w") as f:
-        f.write(text)
-    
+def convert_text(text: str):    
     converted = _converter.convert(text, full=False)
     # Replace HTML entities
     converted = converted.replace('&lt;', '<')
@@ -160,11 +157,7 @@ def convert_text(text: str):
         # Regex to match file paths and optional line numbers
         path_pattern = rf'File "({re.escape(source_prefix)}[\w/.-]+\.py)", line (\d+)(?:,| in).*?'
         converted = re.sub(path_pattern, replace_with_link, converted)
-    
-    # Write it to a file to see what's going on
-    with open("converted.html", "w") as f:
-        f.write(converted)
-    
+
     return converted.encode('utf-8')
 
 
