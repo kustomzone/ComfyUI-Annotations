@@ -643,10 +643,11 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
                                      args, kwargs, debug, input_desc, adjusted_return_types, 
                                      wrapped_name, node_class, return_names=None):
     try_count = 0
-    llm_debugging_enabled = config_service.get_config_value("easy_nodes.llm_debugging", "Off") != "Off"
-    max_tries = int(config_service.get_config_value("easy_nodes.max_tries", 1)) if llm_debugging_enabled == "AutoFix" else 1
+    llm_debugging_mode = config_service.get_config_value("easy_nodes.llm_debugging", "Off")
+    llm_debugging_enabled = llm_debugging_mode != "Off"
+    max_tries = int(config_service.get_config_value("easy_nodes.max_tries", 1)) if llm_debugging_mode == "AutoFix" else 1
     
-    logging.debug(f"Running {func.__qualname__} for {_curr_unique_id} with {max_tries} tries. {llm_debugging_enabled}")
+    logging.info(f"Running {func.__qualname__} for {_curr_unique_id} with {max_tries} tries. {llm_debugging_enabled}")
 
     prompt_id = server.PromptServer.instance.last_prompt_id
     save_logs = True    
@@ -703,6 +704,11 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
 
         except Exception as e:
             logging.error(f"Error while processing: {func}: {e}")
+            if llm_debugging_enabled:
+                logging.info("Handling exception with LLM debugging")
+                llm_debugging.process_exception_logic(func, e, input_desc, buffer)
+                logging.info("Handled exception with LLM debugging")
+
             if try_count == max_tries:
                 # Calculate the number of interesting stack levels.
                 _, _, tb = sys.exc_info()
@@ -713,9 +719,6 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
                 logging.warning(f"{formatted_stack}")
                 
                 raise e
-            
-            if llm_debugging_enabled:
-                llm_debugging.process_exception_logic(func, e, input_desc, buffer)
 
         finally:
             node_logger.removeHandler(buffer_handler)
