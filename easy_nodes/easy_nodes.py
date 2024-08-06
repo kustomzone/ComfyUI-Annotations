@@ -491,10 +491,8 @@ def _verify_values(config: EasyNodesConfig,
                 try:
                     recursive_verify(_custom_verifiers[param_type], val)
                 except Exception as e:
-                    logging.error(_custom_verifiers)
-                    logging.error(val)
                     error_str = f"Error verifying {list_type} {param_name}: {str(e)}\n{code_origin_loc}"
-                    logging.warning(error_str)
+                    logging.error(error_str)
                     if config.verify_level == CheckSeverityMode.FATAL:
                         raise ValueError(error_str) from None                        
         else:
