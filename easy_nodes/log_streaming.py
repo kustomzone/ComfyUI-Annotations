@@ -231,7 +231,7 @@ async def show_log(request):
             await response.write(convert_text("=====================================\n\nEnd of node logs."))
             await send_footer(response)
         except Exception as e:
-            logging.warning(f"Error in show_log: {str(e)} stack trace: {traceback.format_exc()}")
+            logging.debug(f"Error in show_log: {str(e)}")
             return web.Response(status=500)
                 
         return response
