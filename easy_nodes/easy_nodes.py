@@ -837,7 +837,8 @@ def ComfyNode(
         
         def wrapped_is_changed(*args, **kwargs):
             if always_run:
-                logging.info(f"Always running {func.__qualname__}")
+                if debug:
+                    logging.info(f"Always running {func.__qualname__}")
                 return float("nan")
             
             unique_id = kwargs["unique_id"]
