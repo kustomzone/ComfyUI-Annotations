@@ -645,7 +645,7 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
     llm_debugging_enabled = llm_debugging_mode != "Off"
     max_tries = int(config_service.get_config_value("easy_nodes.max_tries", 1)) if llm_debugging_mode == "AutoFix" else 1
     
-    logging.info(f"Running {func.__qualname__} for {_curr_unique_id} with {max_tries} tries. {llm_debugging_enabled}")
+    logging.debug(f"Running {func.__qualname__} for {_curr_unique_id} with {max_tries} tries. {llm_debugging_enabled}")
 
     prompt_id = server.PromptServer.instance.last_prompt_id
     save_logs = True    
