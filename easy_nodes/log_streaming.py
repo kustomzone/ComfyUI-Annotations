@@ -1,4 +1,5 @@
 import asyncio
+import html
 import io
 import logging
 import os
@@ -136,28 +137,24 @@ async def send_header(request) -> web.StreamResponse:
 
 _converter = Ansi2HTMLConverter(inline=True)
 
-def convert_text(text: str):    
-    converted = _converter.convert(text, full=False)
-    # Replace HTML entities
-    converted = converted.replace('&lt;', '<')
-    converted = converted.replace('&gt;', '>')
-    converted = converted.replace('&lt;/a&gt;', '</a>')
-    
-    source_prefix = config_service.get_config_value("easy_nodes.SourcePathPrefix", "")
-    link_prefix = config_service.get_config_value("easy_nodes.EditorPathPrefix", "")
-    
-    if source_prefix:
-        # Replace all instances of the source prefix with a clickable link
-        def replace_with_link(match):
-            full_match = match.group(0)
-            full_path = match.group(1)
-            line_number = match.group(2)
-            return f'<a href="{link_prefix}{full_path}:{line_number}">{full_match}</a>'
 
-        # Regex to match file paths and optional line numbers
-        path_pattern = rf'File "({re.escape(source_prefix)}[\w/.-]+\.py)", line (\d+)(?:,| in).*?'
-        converted = re.sub(path_pattern, replace_with_link, converted)
+def convert_text(text: str):
+    # Convert ANSI codes to HTML
+    converted = _converter.convert(text, full=False, ensure_trailing_newline=False)
 
+    def replace_with_link(match):
+        filepath_and_line = match.group(1)
+        filepath, line = filepath_and_line.rsplit(':', 1)
+        filename = os.path.basename(filepath)
+        prefix = config_service.get_config_value("easy_nodes.EditorPathPrefix", "")
+        if prefix:
+            return f'<a href="{prefix}{filepath}:{line}">{filename}:{line}</a>'
+        else:
+            return f'{filename}:{line}'
+
+    # Regex pattern to match the [[LINK:filepath:lineno]] format
+    converted = re.sub(r'\[\[LINK:([^\]]+)\]\]', replace_with_link, converted)
+    
     return converted.encode('utf-8')
 
 

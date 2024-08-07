@@ -613,7 +613,7 @@ def get_formatter():
     prefix = config_service.get_config_value("easy_nodes.EditorPathPrefix", "")
     
     if prefix:
-        fmt=f"%(levelname)s <a href='{prefix}%(pathname)s:%(lineno)s'>%(filename)s:%(lineno)s</a> %(funcName)s: %(message)s"
+        fmt="%(levelname)s [[LINK:%(pathname)s::%(lineno)s]] %(funcName)s: %(message)s"
     else:
         fmt="%(levelname)s %(filename)s:%(lineno)s %(funcName)s: %(message)s"
         
@@ -627,11 +627,7 @@ def get_formatter():
             critical=dict(color="black", bold=True, background="red"),
         ),
         field_styles=dict(
-            # name=dict(color="white"),
-            # asctime=dict(color="white"),
-            # pathname=dict(color="white"),
             funcName=dict(color="cyan"),
-            # lineno=dict(color="white"),
         ),
     )
     return coloredFormatter
