@@ -318,8 +318,6 @@ api.addEventListener('logs_updated', ({ detail, }) => {
   let nodesWithLogs = detail.nodes_with_logs;
   let prompt_id = detail.prompt_id;
 
-  console.log("Nodes with logs: ", nodesWithLogs);
-
   app.graph._nodes.forEach((node) => {
     let strNodeId = "" + node.id;
     node.has_log = nodesWithLogs.includes(strNodeId);
@@ -336,7 +334,18 @@ api.addEventListener('logs_updated', ({ detail, }) => {
 app.registerExtension({
     name: "EasyNodes.log_streaming",
     async setup(app) {
-        console.log("Setting up log streaming extension");
+      api.addEventListener("status", ({ detail }) => {
+        if (!detail) {
+          app.graph._nodes.forEach((node) => {
+            node.has_log = false;
+          });
+          app.canvas.setDirty(true);
+        }
+      });
+
+      api.addEventListener("reconnected", () => {
+        api.fetchApi('/easy_nodes/trigger_log', { method: 'POST' });
+      });
     },
     async afterConfigureGraph(missingNodeTypes) {
         app.graph._nodes.forEach((node) => {
@@ -346,15 +355,4 @@ app.registerExtension({
     },
 });
 
-api.addEventListener("status", ({ detail }) => {
-  if (!detail) {
-    app.graph._nodes.forEach((node) => {
-      node.has_log = false;
-    });
-    app.canvas.setDirty(true);
-  }
-});
 
-api.addEventListener("reconnected", () => {
-  api.fetchApi('/easy_nodes/trigger_log', { method: 'POST' });
-});
