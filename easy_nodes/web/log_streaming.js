@@ -7,6 +7,7 @@ class FloatingLogWindow {
     this.window = null;
     this.content = null;
     this.currentNodeId = null;
+    this.currentPromptId = null;
     this.hideTimeout = null;
     this.activeStream = null;
     this.streamPromise = null;
