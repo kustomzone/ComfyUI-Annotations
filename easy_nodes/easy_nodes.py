@@ -610,13 +610,8 @@ def _get_latest_version_of_func(func: callable, debug: bool = False):
 
 
 def get_formatter():
-    prefix = config_service.get_config_value("easy_nodes.EditorPathPrefix", "")
-    
-    if prefix:
-        fmt="%(levelname)s [[LINK:%(pathname)s::%(lineno)s]] %(funcName)s: %(message)s"
-    else:
-        fmt="%(levelname)s %(filename)s:%(lineno)s %(funcName)s: %(message)s"
-        
+    fmt="%(levelname)s [[LINK:%(pathname)s:%(lineno)s]] %(funcName)s: %(message)s"
+
     coloredFormatter = coloredlogs.ColoredFormatter(
         fmt=fmt,
         level_styles=dict(
@@ -697,7 +692,6 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
             return result
 
         except Exception as e:
-            logging.error(f"Error while processing: {func}: {e}")
             if llm_debugging_enabled:
                 logging.info("Handling exception with LLM debugging")
                 llm_debugging.process_exception_logic(func, e, input_desc, buffer)
@@ -708,10 +702,8 @@ def _call_function_and_verify_result(config: EasyNodesConfig, func: callable,
                 _, _, tb = sys.exc_info()
                 the_stack = traceback.extract_tb(tb)
                 e.num_interesting_levels = len(the_stack) - 1                
-                formatted_stack = "\n".join(traceback.format_exception(type(e), e, tb))
-                
-                logging.warning(f"{formatted_stack}")
-                
+                formatted_stack = "\n".join(traceback.format_exception(type(e), e, tb))                
+                logging.warning(f"\n\nException in node {_curr_unique_id} ({node_class}):\n{formatted_stack}")
                 raise e
 
         finally:

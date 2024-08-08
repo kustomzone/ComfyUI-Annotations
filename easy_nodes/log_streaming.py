@@ -19,24 +19,60 @@ routes = PromptServer.instance.routes
 
 
 class CloseableBufferWrapper:
-    def __init__(self, buffer):
+    def __init__(self, buffer: io.StringIO):
         self._buffer: io.StringIO = buffer
         self._value: str = None
-        
+        self._closed: bool = False
+
     def close(self):
         self._value = self._buffer.getvalue()
         self._buffer.close()
         self._buffer = None
-    
-    def value(self):
-        if self._buffer is None:
-            return self._value
-        return self._buffer
+        self._closed = True
+
+    async def stream_buffer(self, offset=0):
+        try:
+            buffer = self._buffer if not self._closed else io.StringIO(self._value)
+            buffer.seek(0, io.SEEK_END)
+            buffer_size = buffer.tell()
+            if offset == -1:
+                start_position = 0
+            else:
+                start_position = max(0, buffer_size - offset)
+
+            buffer.seek(start_position)
+            content = buffer.read()
+            yield content
+
+            last_position = buffer.tell()
+
+            while True:
+                # TODO: fix the microscopic chance for a race condition here. 
+                # close() needs to async so we can await a lock there and here.
+                if self._closed:
+                    # Stream the remaining content and exit
+                    remaining_content = self._value[last_position:]
+                    if remaining_content:
+                        yield remaining_content
+                    break
+                
+                buffer.seek(0, io.SEEK_END)
+                if buffer.tell() > last_position:
+                    buffer.seek(last_position)
+                    content = buffer.read()
+                    yield content
+                    last_position = buffer.tell()
+                
+                await asyncio.sleep(0.1)
+                        
+        except Exception as _:
+            logging.error(f"Error in stream_buffer: {traceback.format_exc()}")
 
 
 # Keyed on node ID, first value of tuple is prompt_id.
 _buffers: Dict[str, Tuple[str, List[CloseableBufferWrapper]]] = {}
 _prompt_id = None
+_last_node_id = None
 
 
 async def tail_file(filename, offset):
@@ -62,33 +98,6 @@ async def tail_file(filename, offset):
                 continue
             yield line
 
-
-async def tail_buffer(buffer, offset):
-    try:
-        buffer.seek(0, io.SEEK_END)
-        buffer_size = buffer.tell()
-        if offset == -1:
-            start_position = 0
-        else:
-            start_position = max(0, buffer_size - offset)
-
-        buffer.seek(start_position)
-        content = buffer.read()
-        yield content
-        
-        last_position = buffer.tell()
-        
-        while not buffer.closed:
-            await asyncio.sleep(0.1)
-            buffer.seek(0, io.SEEK_END)
-            if buffer.tell() > last_position:
-                buffer.seek(last_position)
-                content = buffer.read()
-                yield content
-                last_position = buffer.tell()
-    except Exception as _:
-        pass
-    
 
 async def tail_string(content: str, offset: int):
     if offset == -1:
@@ -141,19 +150,30 @@ _converter = Ansi2HTMLConverter(inline=True)
 def convert_text(text: str):
     # Convert ANSI codes to HTML
     converted = _converter.convert(text, full=False, ensure_trailing_newline=False)
+    editor_prefix = config_service.get_config_value("easy_nodes.EditorPathPrefix", "")
+    source_prefix = config_service.get_config_value("easy_nodes.SourcePathPrefix")
 
     def replace_with_link(match):
-        filepath_and_line = match.group(1)
-        filepath, line = filepath_and_line.rsplit(':', 1)
-        filename = os.path.basename(filepath)
-        prefix = config_service.get_config_value("easy_nodes.EditorPathPrefix", "")
-        if prefix:
-            return f'<a href="{prefix}{filepath}:{line}">{filename}:{line}</a>'
-        else:
-            return f'{filename}:{line}'
+        full_path = match.group(1)
+        line_no = match.group(2)
+        full_link = f"{editor_prefix}{full_path}:{line_no}"
+        
+        # Remove source path prefix if it exists
+        if source_prefix and full_path.startswith(source_prefix):
+            full_path = full_path[len(source_prefix):]
+        
+        return f'<a href="{full_link}">{full_path}:{line_no}</a>'
 
     # Regex pattern to match the [[LINK:filepath:lineno]] format
-    converted = re.sub(r'\[\[LINK:([^\]]+)\]\]', replace_with_link, converted)
+    log_pattern = r'\[\[LINK:([^:]+):([^:]+)\]\]'
+    converted = re.sub(log_pattern, replace_with_link, converted)
+    
+    # Also look for anything matching source path prefix and convert to link 
+    if editor_prefix:
+        stack_trace_pattern = r'File "([^"]+)", line (\d+), in (\w+)'
+        converted = re.sub(stack_trace_pattern, 
+                           lambda m: f'{replace_with_link(m)} in <span style="color: #02C0D0;">{m.group(3)}</span>', 
+                           converted)
     
     return converted.encode('utf-8')
 
@@ -161,10 +181,8 @@ def convert_text(text: str):
 async def stream_content(response, content_generator):
     try:
         async for line in content_generator:
-            html_line = convert_text(line)
             try:
-                await response.write(html_line)
-                await response.drain()
+                await send_text(response, line)
             except ConnectionResetError:
                 break
     except asyncio.CancelledError:
@@ -178,7 +196,8 @@ async def stream_content(response, content_generator):
 async def send_footer(response):
     await response.write(b"</pre></body></html>")
     response.force_close()
-    
+
+
 def send_node_update():    
     nodes_with_logs = [key for key in _buffers.keys()]
     PromptServer.instance.send_sync("logs_updated", {"nodes_with_logs": nodes_with_logs, "prompt_id": _prompt_id}, None)
@@ -190,8 +209,18 @@ async def trigger_log(request):
     return web.Response(status=200)
 
 
+async def send_text(response: web.Request, text: str):
+    debug = False
+    if debug:
+        with open("log_streaming.log", "a") as f:
+            f.write(f"{text}")
+
+    await response.write(convert_text(text))
+    await response.drain()
+
+
 @routes.get("/easy_nodes/show_log")
-async def show_log(request):
+async def show_log(request: web.Request):
     offset = int(request.rel_url.query.get("offset", "-1"))
     if "node" in request.rel_url.query:
         try:
@@ -200,54 +229,69 @@ async def show_log(request):
                 logging.error(f"Node {node_id} not found in buffers: {_buffers}")
                 return web.json_response({"node not found": node_id,
                                         "valid nodes": [str(key) for key in _buffers.keys()]}, status=404)
-            
+
             response = await send_header(request)
+            await send_text(response, "Sent header!\n")
             node_class, prompt_id, buffer_list = _buffers[node_id]
-            await response.write(convert_text(f"Logs for node {Fore.GREEN}{node_id}{Fore.RESET} ({Fore.GREEN}{node_class}{Fore.RESET}) in prompt {Fore.GREEN}{prompt_id}{Fore.RESET}\n\n"))
-            
+            await send_text(
+                response,
+                f"Logs for node {Fore.GREEN}{node_id}{Fore.RESET}"
+                + f" ({Fore.GREEN}{node_class}{Fore.RESET})"
+                + f" in prompt {Fore.GREEN}{prompt_id}{Fore.RESET}\n\n",
+            )
+
             invocation = 1
             last_buffer_index = 0
+
             while True:
                 for i in range(last_buffer_index, len(buffer_list)):
                     input_desc, buffer = buffer_list[i]
                     input_desc_str = "\n".join(input_desc) if isinstance(input_desc, list) else input_desc
                     invocation_header = f"======== Node invocation {Fore.GREEN}{invocation:3d}{Fore.RESET} ========\n"
-                    await response.write(convert_text(invocation_header))
-                    await response.write(convert_text(f"Params passed to node:\n{Fore.CYAN}{input_desc_str}{Fore.RESET}\n--\n"))
+                    await send_text(response, invocation_header)
+                    await send_text(response, f"Params passed to node:\n{Fore.CYAN}{input_desc_str}{Fore.RESET}\n--\n")
                     invocation += 1
-                    buffer_content = buffer.value()
-                    generator = tail_string(buffer_content, offset) if isinstance(buffer_content, str) else tail_buffer(buffer_content, offset)
-                    await stream_content(response, generator)
+                    await stream_content(response, buffer.stream_buffer(offset))
                     last_buffer_index = i + 1
-                
+
                 # Wait for a second to check for new logs in case there's more coming.
-                await asyncio.sleep(1)
-                if last_buffer_index >= len(buffer_list):
+                if _last_node_id != node_id:
+                    logging.info(f"Node ID changed from {_last_node_id} to {node_id} {type(_last_node_id)} {type(node_id)}")
                     break
                 
-            await response.write(convert_text("=====================================\n\nEnd of node logs."))
+                # If the next node wasn't an EasyNode or this was the actual last node in the prompt, we can't be completely
+                # sure if there's more logs coming. So we'll just wait for a second and check again.
+                if len(buffer_list) == last_buffer_index:
+                    await asyncio.sleep(0.5)
+                    if len(buffer_list) == last_buffer_index:
+                        break
+
+            await send_text(response, "=====================================\n\nEnd of node logs.")
             await send_footer(response)
         except Exception as e:
-            logging.debug(f"Error in show_log: {str(e)}")
+            # Most exceptions seem to be related to the response object being closed (user closed the window)
+            logging.debug(f"Error in show_log for node {node_id} (last node id: {_last_node_id}): {str(e)} {traceback.format_exc()}")            
             return web.Response(status=500)
-                
         return response
 
     response = await send_header(request)
-    await stream_content(request, tail_file("comfyui.log", offset), response)
+    await stream_content(response, tail_file("comfyui.log", offset))
     await send_footer(response)
     return response
-    
+
 
 def add_log_buffer(node_id: str, node_class: str, prompt_id: str, input_desc: str, 
                    buffer_wrapper: CloseableBufferWrapper):
     global _prompt_id
     _prompt_id = prompt_id
     
+    global _last_node_id
+    _last_node_id = node_id
+    
     node_id = str(node_id)
     
     if node_id in _buffers:
-        node_class, existing_prompt_id, buffers = _buffers[node_id]
+        existing_node_class, existing_prompt_id, buffers = _buffers[node_id]
         if existing_prompt_id != prompt_id:
             log_list = [] 
             _buffers[node_id] = (node_class, prompt_id, log_list)
@@ -257,7 +301,7 @@ def add_log_buffer(node_id: str, node_class: str, prompt_id: str, input_desc: st
         log_list = []
         _buffers[node_id] = (node_class, prompt_id, log_list)
 
-    log_list.append((input_desc, buffer_wrapper))
+    log_list.append((input_desc, buffer_wrapper))    
     send_node_update()
 
 

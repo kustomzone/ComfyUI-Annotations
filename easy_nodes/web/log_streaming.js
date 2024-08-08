@@ -326,10 +326,11 @@ api.addEventListener('logs_updated', ({ detail, }) => {
   });
 
   // If the floating log window is showing logs for a node that has a new log, refresh it:
-  console.log("Current node id: ", floatingLogWindow.currentNodeId);
-  if (floatingLogWindow.currentNodeId && nodesWithLogs.includes(floatingLogWindow.currentNodeId + "")) {
+  if (floatingLogWindow.currentPromptId != prompt_id && nodesWithLogs.includes(floatingLogWindow.currentNodeId + "")) {
     floatingLogWindow.resetStream();
   }
+  floatingLogWindow.currentPromptId = prompt_id;
+  app.canvas.setDirty(true);
 }, false);
 
 app.registerExtension({
@@ -338,9 +339,22 @@ app.registerExtension({
         console.log("Setting up log streaming extension");
     },
     async afterConfigureGraph(missingNodeTypes) {
-        console.log("After configure graph");
-        // hit the /easy_nodes/trigger_log endpoint to make the server send the message we're listening for
-        await api.fetchApi('/easy_nodes/trigger_log', { method: 'POST' });
+        app.graph._nodes.forEach((node) => {
+          node.has_log = false;
+        });
+        api.fetchApi('/easy_nodes/trigger_log', { method: 'POST' });
     },
 });
 
+api.addEventListener("status", ({ detail }) => {
+  if (!detail) {
+    app.graph._nodes.forEach((node) => {
+      node.has_log = false;
+    });
+    app.canvas.setDirty(true);
+  }
+});
+
+api.addEventListener("reconnected", () => {
+  api.fetchApi('/easy_nodes/trigger_log', { method: 'POST' });
+});
