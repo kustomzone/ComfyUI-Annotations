@@ -1,4 +1,5 @@
 from easy_nodes.comfy_types import (  # noqa: F401
+    Color,
     ConditioningTensor,
     ImageTensor,
     LatentTensor,

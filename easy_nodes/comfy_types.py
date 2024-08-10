@@ -27,6 +27,11 @@ class PhotoMaker:
 class NumberType:
     pass
 
+class Color(str):
+    def __new__(cls, value):
+        return super().__new__(cls, value)
+
+register_type(Color, "COLOR")
 
 # ComfyUI will get the special string that anytype is registered with, which is hardcoded to match anything.
 register_type(AnyType, any_type, verifier=AnythingVerifier())
